@@ -1,4 +1,4 @@
-project "Engine"
+project "UniGen"
 	kind "StaticLib"
 	language "C++"
 	cppdialect "C++23"

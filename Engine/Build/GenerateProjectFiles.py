@@ -19,7 +19,7 @@ def main():
         return 1
     
     Logger.info("Running Premake...")
-    result = subprocess.run([str(premake_exe.absolute()), "vs2022"])
+    result = subprocess.run([str(premake_exe.absolute()), "vs2026"])
     
     if result.returncode == 0:
         Logger.success("Visual Studio solution generated!")

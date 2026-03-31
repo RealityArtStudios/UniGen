@@ -4,6 +4,7 @@
 
 #include <memory>
 #include "Window.h"
+#include "Renderer/Renderer.h"
 
 struct GameEngine
 {
@@ -21,6 +22,7 @@ public:
     void Stop() { bIsRunning = false; }
 
     Window* GetWindow() const { return m_Window; }
+    Renderer* GetRenderer() const { return m_Renderer.get(); }
 
 private:
     void Initialize();
@@ -29,4 +31,5 @@ private:
 
     bool bIsRunning = true;
     Window* m_Window = nullptr;
+    std::unique_ptr<Renderer> m_Renderer;
 };

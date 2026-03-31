@@ -1,5 +1,3 @@
-// Copyright (c) CreationArtStudios, Khairol Anwar
-
 #include "Runtime/EngineCore/Application.h"
 
 class GameApp : public Application

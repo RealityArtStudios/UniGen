@@ -23,15 +23,14 @@ files {
 		"%{IncludeDir.VulkanSDK}",
 		"%{IncludeDir.GLM}",
 		"%{IncludeDir.stb}",
-		"%{IncludeDir.tinyobjloader}",
-		"%{IncludeDir.tinygltf}",
-		"%{IncludeDir.KTX}",
-		"%{IncludeDir.VMA}"
+"%{IncludeDir.tinyobjloader}",
+"%{IncludeDir.tinygltf}",
+"%{IncludeDir.KTX}"
 	}
 
 	links
 	{
-		"Engine",
+		"UniGen",
 		"ImGui"
 	}
 
