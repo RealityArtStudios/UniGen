@@ -90,17 +90,9 @@ public:
 	void Render();
 	void Shutdown();
 	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
-	vk::raii::PhysicalDevice& GetPhysicalDevice() { return VulkanInstanceWrapper->GetPhysicalDevice(); }
 	vk::raii::Queue& GetGraphicsQueue() { return VulkanGraphicsQueue; }
 	vk::raii::CommandPool& GetCommandPool() { return VulkanCommandPool; }
-	uint32_t GetQueueFamilyIndex() const { return VulkanInstanceWrapper->GetQueueFamilyIndex(); }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
-	vk::raii::SwapchainKHR& GetSwapChain() { return SwapChainWrapper->GetSwapChain(); }
-	vk::Extent2D GetSwapChainExtent() const { return SwapChainWrapper->GetExtent(); }
-	vk::SurfaceFormatKHR GetSwapChainFormat() const { return SwapChainWrapper->GetFormat(); }
-	vk::raii::ImageView& GetSwapChainImageView(uint32_t index) { return SwapChainWrapper->GetImageView(index); }
-	const std::vector<vk::Image>& GetSwapChainImages() const { return SwapChainWrapper->GetImages(); }
-
 	vk::raii::CommandBuffer& GetCurrentCommandBuffer() { return VulkanCommandBuffers[frameIndex]; }
 	vk::raii::DescriptorSet& GetCurrentDescriptorSet() { return VulkanDescriptorSets[frameIndex]; }
 

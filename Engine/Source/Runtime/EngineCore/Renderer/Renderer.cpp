@@ -912,16 +912,6 @@ void Renderer::CleanupSwapChain()
 
 void Renderer::RecreateSwapChain()
 {
-    int width = 0, height = 0;
-    glfwGetFramebufferSize(RendererWindow->getGLFWwindow(), &width, &height);
-    while (width == 0 || height == 0)
-    {
-        glfwGetFramebufferSize(RendererWindow->getGLFWwindow(), &width, &height);
-        glfwWaitEvents();
-    }
-
-    VulkanInstanceWrapper->GetLogicalDevice().waitIdle();
-
     SwapChainWrapper->Recreate();
     CreateDepthResources();
 }
