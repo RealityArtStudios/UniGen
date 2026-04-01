@@ -91,7 +91,7 @@ public:
 	void Render();
 	void Shutdown();
 	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
-	BufferManager* GetBufferManager() const { return BufferManagerWrapper.get(); }
+	vk::raii::PhysicalDevice& GetPhysicalDevice() { return VulkanInstanceWrapper->GetPhysicalDevice(); }
 	vk::raii::CommandPool& GetCommandPool() { return VulkanCommandPool; }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
 	vk::raii::CommandBuffer& GetCurrentCommandBuffer() { return VulkanCommandBuffers[frameIndex]; }
