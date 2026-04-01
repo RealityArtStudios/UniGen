@@ -24,7 +24,7 @@ const std::vector<char const*> validationLayers = {
 constexpr int      MAX_FRAMES_IN_FLIGHT = 2;
 
 Renderer::Renderer(Window* InWindow)
-	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr)
+	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr), BufferManagerWrapper(nullptr)
 {
 
 }
@@ -37,10 +37,11 @@ Renderer::~Renderer()
 void Renderer::Initialize()
 {
     VulkanInstanceWrapper->CreateInstance(RendererWindow);
-    VulkanGraphicsQueue = vk::raii::Queue(VulkanInstanceWrapper->GetLogicalDevice(), VulkanInstanceWrapper->GetQueueFamilyIndex(), 0);
 
     SwapChainWrapper = std::make_unique<SwapChain>(VulkanInstanceWrapper.get(), RendererWindow);
     SwapChainWrapper->Create();
+
+    BufferManagerWrapper = std::make_unique<BufferManager>(VulkanInstanceWrapper.get());
 
     CreateDescriptorSetLayout();
     CreateGraphicsPipeline();
@@ -52,9 +53,9 @@ void Renderer::Initialize()
     CreateTextureSampler();
     //LoadModel();
     LoadModelWithGLTF();
-    CreateVertexBuffer();
-    CreateIndexBuffer();
-    CreateUniformBuffers();
+    BufferManagerWrapper->CreateVertexBuffer(vertices, VulkanVertexBuffer, VulkanVertexBufferMemory, VulkanCommandPool, VulkanInstanceWrapper->GetGraphicsQueue());
+    BufferManagerWrapper->CreateIndexBuffer(indices, VulkanIndexBuffer, VulkanIndexBufferMemory, VulkanCommandPool, VulkanInstanceWrapper->GetGraphicsQueue());
+    BufferManagerWrapper->CreateUniformBuffers(MAX_FRAMES_IN_FLIGHT, VulkanUniformBuffers, VulkanUniformBuffersMemory, VulkanUniformBuffersMapped);
     CreateDescriptorPool();
     CreateDescriptorSets();
     CreateCommandBuffers();
@@ -105,7 +106,7 @@ void Renderer::Render()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &*VulkanRenderFinishedSemaphores[imageIndex];
 
-    VulkanGraphicsQueue.submit(submitInfo, *inFlightFences[frameIndex]);
+    VulkanInstanceWrapper->GetGraphicsQueue().submit(submitInfo, *inFlightFences[frameIndex]);
 
     vk::PresentInfoKHR presentInfoKHR;
     presentInfoKHR.waitSemaphoreCount = 1;
@@ -114,7 +115,7 @@ void Renderer::Render()
     presentInfoKHR.pSwapchains = &*SwapChainWrapper->GetSwapChain();
     presentInfoKHR.pImageIndices = &imageIndex;
 
-    result = VulkanGraphicsQueue.presentKHR(presentInfoKHR);
+    result = VulkanInstanceWrapper->GetGraphicsQueue().presentKHR(presentInfoKHR);
     // Due to VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS being defined, eErrorOutOfDateKHR can be checked as a result
     // here and does not need to be caught by an exception.
     if ((result == vk::Result::eSuboptimalKHR) || (result == vk::Result::eErrorOutOfDateKHR) || RendererWindow->IsResized())
@@ -285,7 +286,7 @@ void Renderer::CreateTextureImage()
     vk::raii::Buffer stagingBuffer({});
     vk::raii::DeviceMemory stagingBufferMemory({});
 
-    CreateBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
+    BufferManagerWrapper->CreateBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
 
     void* data = stagingBufferMemory.mapMemory(0, imageSize);
     memcpy(data, pixels, imageSize);
@@ -381,7 +382,7 @@ void Renderer::CreateImage(uint32_t width, uint32_t height, vk::Format format, v
     vk::MemoryRequirements memRequirements = image.getMemoryRequirements();
     vk::MemoryAllocateInfo allocInfo;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+    allocInfo.memoryTypeIndex = BufferManagerWrapper->FindMemoryType(memRequirements.memoryTypeBits, properties);
 
     imageMemory = vk::raii::DeviceMemory(VulkanInstanceWrapper->GetLogicalDevice(), allocInfo);
     image.bindMemory(imageMemory, 0);
@@ -583,24 +584,6 @@ void Renderer::LoadModelWithGLTF() {
     }
 }
 
-void Renderer::CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties, vk::raii::Buffer& buffer, vk::raii::DeviceMemory& bufferMemory)
-{
-    vk::BufferCreateInfo bufferInfo;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = vk::SharingMode::eExclusive;
-
-    buffer = vk::raii::Buffer(VulkanInstanceWrapper->GetLogicalDevice(), bufferInfo);
-
-    vk::MemoryRequirements memRequirements = buffer.getMemoryRequirements();
-    vk::MemoryAllocateInfo allocInfo;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-    bufferMemory = vk::raii::DeviceMemory(VulkanInstanceWrapper->GetLogicalDevice(), allocInfo);
-    buffer.bindMemory(*bufferMemory, 0);
-}
-
 void Renderer::CreateDescriptorPool()
 {
     std::array poolSize{
@@ -657,56 +640,6 @@ void Renderer::CreateDescriptorSets()
 
         std::array descriptorWrites{ bufferdescriptorWrite , imageinfodescriptorWrite };
         VulkanInstanceWrapper->GetLogicalDevice().updateDescriptorSets(descriptorWrites, {});
-    }
-}
-
-void Renderer::CreateVertexBuffer()
-{
-    vk::DeviceSize         bufferSize = sizeof(vertices[0]) * vertices.size();
-    vk::raii::Buffer       stagingBuffer({});
-    vk::raii::DeviceMemory stagingBufferMemory({});
-    CreateBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
-
-    void* dataStaging = stagingBufferMemory.mapMemory(0, bufferSize);
-    memcpy(dataStaging, vertices.data(), bufferSize);
-    stagingBufferMemory.unmapMemory();
-
-    CreateBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal, VulkanVertexBuffer, VulkanVertexBufferMemory);
-
-    copyBuffer(stagingBuffer, VulkanVertexBuffer, bufferSize);
-}
-
-void Renderer::CreateIndexBuffer()
-{
-    vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-
-    vk::raii::Buffer       stagingBuffer({});
-    vk::raii::DeviceMemory stagingBufferMemory({});
-    CreateBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
-
-    void* data = stagingBufferMemory.mapMemory(0, bufferSize);
-    memcpy(data, indices.data(), (size_t)bufferSize);
-    stagingBufferMemory.unmapMemory();
-
-    CreateBuffer(bufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eDeviceLocal, VulkanIndexBuffer, VulkanIndexBufferMemory);
-
-    copyBuffer(stagingBuffer, VulkanIndexBuffer, bufferSize);
-}
-
-void Renderer::CreateUniformBuffers()
-{
-    VulkanUniformBuffers.clear();
-    VulkanUniformBuffersMemory.clear();
-    VulkanUniformBuffersMapped.clear();
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vk::DeviceSize bufferSize = sizeof(UniformBufferObject);
-        vk::raii::Buffer buffer({});
-        vk::raii::DeviceMemory bufferMem({});
-        CreateBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, buffer, bufferMem);
-        VulkanUniformBuffers.emplace_back(std::move(buffer));
-        VulkanUniformBuffersMemory.emplace_back(std::move(bufferMem));
-        VulkanUniformBuffersMapped.emplace_back(VulkanUniformBuffersMemory[i].mapMemory(0, bufferSize));
     }
 }
 
@@ -870,7 +803,7 @@ void Renderer::transition_image_layout(
 
 void Renderer::transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout)
 {
-    auto commandBuffer = beginSingleTimeCommands();
+    auto commandBuffer = BufferManagerWrapper->beginSingleTimeCommands(VulkanCommandPool);
     vk::ImageMemoryBarrier barrier;
     barrier.oldLayout = oldLayout;
     barrier.newLayout = newLayout;
@@ -902,7 +835,7 @@ void Renderer::transitionImageLayout(const vk::raii::Image& image, vk::ImageLayo
     }
     commandBuffer.pipelineBarrier(sourceStage, destinationStage, {}, {}, nullptr, barrier);
 
-    endSingleTimeCommands(commandBuffer);
+    BufferManagerWrapper->endSingleTimeCommands(commandBuffer);
 }
 
 void Renderer::CleanupSwapChain()
@@ -912,16 +845,6 @@ void Renderer::CleanupSwapChain()
 
 void Renderer::RecreateSwapChain()
 {
-    int width = 0, height = 0;
-    glfwGetFramebufferSize(RendererWindow->getGLFWwindow(), &width, &height);
-    while (width == 0 || height == 0)
-    {
-        glfwGetFramebufferSize(RendererWindow->getGLFWwindow(), &width, &height);
-        glfwWaitEvents();
-    }
-
-    VulkanInstanceWrapper->GetLogicalDevice().waitIdle();
-
     SwapChainWrapper->Recreate();
     CreateDepthResources();
 }

@@ -207,6 +207,8 @@ void VulkanInstance::CreateLogicalDevice()
 	deviceCreateInfo.ppEnabledExtensionNames = VulkanRequiredDeviceExtension.data();
 
 	VulkanLogicalDevice = vk::raii::Device(VulkanPhysicalDevice, deviceCreateInfo);
+	VulkanGraphicsQueue = vk::raii::Queue(VulkanLogicalDevice, GetQueueFamilyIndex(), 0);
+
 }
 
 std::vector<const char*> VulkanInstance::getRequiredExtensions() {

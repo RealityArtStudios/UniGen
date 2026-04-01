@@ -25,6 +25,7 @@ public:
 	void CreateSurface(Window* window);
 	void SetupDebugMessenger();
 	void Shutdown();
+	vk::raii::Queue& GetGraphicsQueue() { return VulkanGraphicsQueue; }
 
 	vk::raii::Instance& GetInstance() { return m_VulkanInstance; }
 	vk::raii::PhysicalDevice& GetPhysicalDevice() { return VulkanPhysicalDevice; }
@@ -49,6 +50,7 @@ private:
 	vk::raii::PhysicalDevice VulkanPhysicalDevice = nullptr;
 	vk::raii::Device VulkanLogicalDevice = nullptr;
 	vk::raii::SurfaceKHR VulkanSurface = nullptr;
+	vk::raii::Queue VulkanGraphicsQueue = nullptr;
 	uint32_t queueIndex = ~0;
 	Window* RendererWindow = nullptr;
 

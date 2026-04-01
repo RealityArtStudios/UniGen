@@ -39,6 +39,7 @@ import vulkan_hpp;
 
 #include "VulkanInstance/VulkanInstance.h"
 #include "SwapChain.h"
+#include "Buffer.h"
 struct Vertex
 {
 	glm::vec3 pos;
@@ -90,17 +91,9 @@ public:
 	void Render();
 	void Shutdown();
 	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
-	vk::raii::PhysicalDevice& GetPhysicalDevice() { return VulkanInstanceWrapper->GetPhysicalDevice(); }
-	vk::raii::Queue& GetGraphicsQueue() { return VulkanGraphicsQueue; }
+	BufferManager* GetBufferManager() const { return BufferManagerWrapper.get(); }
 	vk::raii::CommandPool& GetCommandPool() { return VulkanCommandPool; }
-	uint32_t GetQueueFamilyIndex() const { return VulkanInstanceWrapper->GetQueueFamilyIndex(); }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
-	vk::raii::SwapchainKHR& GetSwapChain() { return SwapChainWrapper->GetSwapChain(); }
-	vk::Extent2D GetSwapChainExtent() const { return SwapChainWrapper->GetExtent(); }
-	vk::SurfaceFormatKHR GetSwapChainFormat() const { return SwapChainWrapper->GetFormat(); }
-	vk::raii::ImageView& GetSwapChainImageView(uint32_t index) { return SwapChainWrapper->GetImageView(index); }
-	const std::vector<vk::Image>& GetSwapChainImages() const { return SwapChainWrapper->GetImages(); }
-
 	vk::raii::CommandBuffer& GetCurrentCommandBuffer() { return VulkanCommandBuffers[frameIndex]; }
 	vk::raii::DescriptorSet& GetCurrentDescriptorSet() { return VulkanDescriptorSets[frameIndex]; }
 
@@ -129,11 +122,7 @@ protected:
 	void CreateTextureSampler();
 	void LoadModel();
 	void LoadModelWithGLTF();
-	void CreateVertexBuffer();
-	void CreateIndexBuffer();
-	void CreateUniformBuffers();
 	void UpdateUniformBuffer(uint32_t currentImage);
-	void CreateBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties, vk::raii::Buffer& buffer, vk::raii::DeviceMemory& bufferMemory);
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
 	void CreateCommandBuffers();
@@ -148,93 +137,10 @@ protected:
 	//helpers function- vulkan
 	void CleanupSwapChain();
 
-	void copyBuffer(vk::raii::Buffer& srcBuffer, vk::raii::Buffer& dstBuffer, vk::DeviceSize size) 
-	{
-		vk::CommandBufferAllocateInfo allocInfo;
-		allocInfo.commandPool = VulkanCommandPool;
-		allocInfo.level = vk::CommandBufferLevel::ePrimary;
-		allocInfo.commandBufferCount = 1;
-
-		vk::raii::CommandBuffer       commandCopyBuffer = std::move(VulkanInstanceWrapper->GetLogicalDevice().allocateCommandBuffers(allocInfo).front());
-
-		vk::CommandBufferBeginInfo CommandBufferBeginInfo;
-		CommandBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-
-		commandCopyBuffer.begin(CommandBufferBeginInfo);
-
-		vk::BufferCopy copybuffer;
-		copybuffer.size = size;
-
-		commandCopyBuffer.copyBuffer(*srcBuffer, *dstBuffer, copybuffer);
-		commandCopyBuffer.end();
-
-		vk::SubmitInfo SubmitInfo;
-		SubmitInfo.commandBufferCount = 1;
-		SubmitInfo.pCommandBuffers = &*commandCopyBuffer;
-
-		VulkanGraphicsQueue.submit(SubmitInfo, nullptr);
-		VulkanGraphicsQueue.waitIdle();
-	}
-
-	std::vector<char const*> getRequiredExtensions();
-
-	static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void*)
-	{
-		if (severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError || severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
-		{
-			std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
-		}
-
-		return vk::False;
-	}
-
-	uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties)
-	{
-		vk::PhysicalDeviceMemoryProperties memProperties = VulkanInstanceWrapper->GetPhysicalDevice().getMemoryProperties();
-
-		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-		{
-			if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-			{
-				return i;
-			}
-		}
-
-		throw std::runtime_error("failed to find suitable memory type!");
-	}
-
 	//Texture
-	vk::raii::CommandBuffer beginSingleTimeCommands()
-	{
-		vk::CommandBufferAllocateInfo allocInfo;
-		allocInfo.commandPool = VulkanCommandPool;
-		allocInfo.level = vk::CommandBufferLevel::ePrimary;
-		allocInfo.commandBufferCount = 1;
-
-		vk::raii::CommandBuffer commandBuffer = std::move(VulkanInstanceWrapper->GetLogicalDevice().allocateCommandBuffers(allocInfo).front());
-
-		vk::CommandBufferBeginInfo beginInfo;
-		beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-
-		commandBuffer.begin(beginInfo);
-
-		return commandBuffer;
-	}
-
-	void endSingleTimeCommands(vk::raii::CommandBuffer& commandBuffer)
-	{
-		commandBuffer.end();
-
-		vk::SubmitInfo submitInfo;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &*commandBuffer;
-
-		VulkanGraphicsQueue.submit(submitInfo, nullptr);
-		VulkanGraphicsQueue.waitIdle();
-	}
 
 	void copyBufferToImage(const vk::raii::Buffer& buffer, vk::raii::Image& image, uint32_t width, uint32_t height) {
-		vk::raii::CommandBuffer commandBuffer = beginSingleTimeCommands();
+		vk::raii::CommandBuffer commandBuffer = BufferManagerWrapper->beginSingleTimeCommands(VulkanCommandPool);
 
 		vk::BufferImageCopy region;
 		region.bufferOffset = 0;
@@ -245,7 +151,7 @@ protected:
 		region.imageExtent = vk::Extent3D{ width, height, 1 };
 
 		commandBuffer.copyBufferToImage(buffer, image, vk::ImageLayout::eTransferDstOptimal, { region });
-		endSingleTimeCommands(commandBuffer);
+		BufferManagerWrapper->endSingleTimeCommands(commandBuffer);
 	}
 
 	// Depth Buffering (3D)
@@ -281,7 +187,7 @@ protected:
 	//Vulkan
 	std::unique_ptr<VulkanInstance> VulkanInstanceWrapper;
 	std::unique_ptr<SwapChain> SwapChainWrapper;
-	vk::raii::Queue VulkanGraphicsQueue = nullptr;
+	std::unique_ptr<BufferManager> BufferManagerWrapper;
 	vk::raii::DescriptorSetLayout VulkanDescriptorSetLayout = nullptr;
 	vk::raii::PipelineLayout VulkanPipelineLayout = nullptr;
 	vk::raii::Pipeline       VulkanGraphicsPipeline = nullptr;
