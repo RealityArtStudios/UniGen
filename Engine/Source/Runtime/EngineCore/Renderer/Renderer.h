@@ -36,6 +36,8 @@ import vulkan_hpp;
 #include <tiny_gltf.h>
 
 #include <ktx.h>
+
+#include "VulkanInstance/VulkanInstance.h"
 struct Vertex
 {
 	glm::vec3 pos;
@@ -86,12 +88,11 @@ public:
 	void Initialize();
 	void Render();
 	void Shutdown();
-
-	vk::raii::Device& GetDevice() { return VulkanLogicalDevice; }
-	vk::raii::PhysicalDevice& GetPhysicalDevice() { return VulkanPhysicalDevice; }
+	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
+	vk::raii::PhysicalDevice& GetPhysicalDevice() { return VulkanInstanceWrapper->GetPhysicalDevice(); }
 	vk::raii::Queue& GetGraphicsQueue() { return VulkanGraphicsQueue; }
 	vk::raii::CommandPool& GetCommandPool() { return VulkanCommandPool; }
-	uint32_t GetQueueFamilyIndex() const { return queueIndex; }
+	uint32_t GetQueueFamilyIndex() const { return VulkanInstanceWrapper->GetQueueFamilyIndex(); }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
 	vk::raii::SwapchainKHR& GetSwapChain() { return VulkanSwapChain; }
 	vk::Extent2D GetSwapChainExtent() const { return VulkanSwapChainExtent; }
@@ -115,11 +116,6 @@ public:
 protected:
 	void RecreateSwapChain();
 	// Vulkan
-	void CreateInstance();
-	void SetupDebugMessenger();
-	void CreateSurface();
-	void PickPhysicalDevice();
-	void CreateLogicalDevice();
 	void CreateSwapChain();
 	vk::raii::ImageView CreateImageView(vk::raii::Image& image, vk::Format format, vk::ImageAspectFlags aspectFlags);
 	void CreateImageViews();
@@ -191,7 +187,7 @@ protected:
 		allocInfo.level = vk::CommandBufferLevel::ePrimary;
 		allocInfo.commandBufferCount = 1;
 
-		vk::raii::CommandBuffer       commandCopyBuffer = std::move(VulkanLogicalDevice.allocateCommandBuffers(allocInfo).front());
+		vk::raii::CommandBuffer       commandCopyBuffer = std::move(VulkanInstanceWrapper->GetLogicalDevice().allocateCommandBuffers(allocInfo).front());
 
 		vk::CommandBufferBeginInfo CommandBufferBeginInfo;
 		CommandBufferBeginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
@@ -226,7 +222,7 @@ protected:
 
 	uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties)
 	{
-		vk::PhysicalDeviceMemoryProperties memProperties = VulkanPhysicalDevice.getMemoryProperties();
+		vk::PhysicalDeviceMemoryProperties memProperties = VulkanInstanceWrapper->GetPhysicalDevice().getMemoryProperties();
 
 		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
 		{
@@ -247,7 +243,7 @@ protected:
 		allocInfo.level = vk::CommandBufferLevel::ePrimary;
 		allocInfo.commandBufferCount = 1;
 
-		vk::raii::CommandBuffer commandBuffer = std::move(VulkanLogicalDevice.allocateCommandBuffers(allocInfo).front());
+		vk::raii::CommandBuffer commandBuffer = std::move(VulkanInstanceWrapper->GetLogicalDevice().allocateCommandBuffers(allocInfo).front());
 
 		vk::CommandBufferBeginInfo beginInfo;
 		beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
@@ -288,7 +284,7 @@ protected:
 	vk::Format findSupportedFormat(const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features)
 	{
 		for (const auto format : candidates) {
-			vk::FormatProperties props = VulkanPhysicalDevice.getFormatProperties(format);
+			vk::FormatProperties props = VulkanInstanceWrapper->GetPhysicalDevice().getFormatProperties(format);
 
 			if (tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features) {
 				return format;
@@ -315,19 +311,13 @@ protected:
 
 protected:
 	//Vulkan
-	vk::raii::Context  VulkanContext;
-	vk::raii::Instance VulkanInstance = nullptr;
-	vk::raii::DebugUtilsMessengerEXT VulkanDebugMessenger = nullptr;
-	vk::raii::PhysicalDevice VulkanPhysicalDevice = nullptr;
-	vk::raii::Device VulkanLogicalDevice = nullptr;
+	std::unique_ptr<VulkanInstance> VulkanInstanceWrapper;
 	vk::raii::Queue VulkanGraphicsQueue = nullptr;
-	vk::raii::SurfaceKHR VulkanSurface = nullptr;
 	vk::raii::SwapchainKHR           VulkanSwapChain = nullptr;
 	std::vector<vk::Image>           VulkanSwapChainImages;
 	vk::SurfaceFormatKHR             VulkanSwapChainSurfaceFormat;
 	vk::Extent2D                     VulkanSwapChainExtent;
 	std::vector<vk::raii::ImageView> VulkanSwapChainImageViews;
-	uint32_t                         queueIndex = ~0;
 	vk::raii::DescriptorSetLayout VulkanDescriptorSetLayout = nullptr;
 	vk::raii::PipelineLayout VulkanPipelineLayout = nullptr;
 	vk::raii::Pipeline       VulkanGraphicsPipeline = nullptr;

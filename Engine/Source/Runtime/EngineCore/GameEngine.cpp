@@ -38,7 +38,7 @@ void GameEngine::MainLoop()
         
         OnRender(m_Window->deltaTime);
     }
-    m_Renderer->GetDevice().waitIdle();
+    m_Renderer->GetVulkanInstance()->GetLogicalDevice().waitIdle();
 }
 
 void GameEngine::Shutdown()
