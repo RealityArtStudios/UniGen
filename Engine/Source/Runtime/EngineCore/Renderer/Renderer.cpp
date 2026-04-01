@@ -1,3 +1,4 @@
+// Copyright (c) CreationArtStudios, Khairol Anwar
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -7,6 +8,8 @@
 #include <chrono>
 
 #include "Runtime/EngineCore/Window.h"
+#include "Runtime/EngineCore/FileSystem/FileSystem.h"
+#include "Runtime/EngineCore/Shader/Shader.h"
 
 
 //TODO: File system and ecs load objedct and set the filepath
@@ -383,9 +386,12 @@ void Renderer::CreateDescriptorSetLayout()
 
 void Renderer::CreateGraphicsPipeline()
 {
-    vk::raii::ShaderModule VertexShaderModule = CreateShaderModule(ReadFile("../Engine/Binaries/Shaders/ShaderType_Vertex.spv"));
-    vk::raii::ShaderModule FragmentShaderModule = CreateShaderModule(ReadFile("../Engine/Binaries/Shaders/ShaderTypes_Fragment.spv"));
-
+    //@TODO: Move file system initialization outside of Renderer. should be in GameEngine level
+    Shader* shaderSystem = new Shader();
+    FileSystem* fileSystem  = new FileSystem();
+    vk::raii::ShaderModule VertexShaderModule = shaderSystem->CreateShaderModule(fileSystem->ReadFile("../Engine/Binaries/Shaders/ShaderType_Vertex.spv"), VulkanLogicalDevice);
+    vk::raii::ShaderModule FragmentShaderModule = shaderSystem->CreateShaderModule(fileSystem->ReadFile("../Engine/Binaries/Shaders/ShaderTypes_Fragment.spv"), VulkanLogicalDevice);
+    
     vk::PipelineShaderStageCreateInfo VertShaderStageInfo;
     VertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
     VertShaderStageInfo.module = VertexShaderModule;
