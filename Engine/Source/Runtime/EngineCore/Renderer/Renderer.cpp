@@ -24,7 +24,7 @@ const std::vector<char const*> validationLayers = {
 constexpr int      MAX_FRAMES_IN_FLIGHT = 2;
 
 Renderer::Renderer(Window* InWindow)
-	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>())
+	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr)
 {
 
 }
@@ -39,8 +39,9 @@ void Renderer::Initialize()
     VulkanInstanceWrapper->CreateInstance(RendererWindow);
     VulkanGraphicsQueue = vk::raii::Queue(VulkanInstanceWrapper->GetLogicalDevice(), VulkanInstanceWrapper->GetQueueFamilyIndex(), 0);
 
-    CreateSwapChain();
-    CreateImageViews();
+    SwapChainWrapper = std::make_unique<SwapChain>(VulkanInstanceWrapper.get(), RendererWindow);
+    SwapChainWrapper->Create();
+
     CreateDescriptorSetLayout();
     CreateGraphicsPipeline();
     CreateCommandPool();
@@ -70,7 +71,7 @@ void Renderer::Render()
         throw std::runtime_error("failed to wait for fence!");
     }
 
-    auto [result, imageIndex] = VulkanSwapChain.acquireNextImage(UINT64_MAX, *VulkanPresentCompleteSemaphores[frameIndex], nullptr);
+    auto [result, imageIndex] = SwapChainWrapper->GetSwapChain().acquireNextImage(UINT64_MAX, *VulkanPresentCompleteSemaphores[frameIndex], nullptr);
 
     // Due to VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS being defined, eErrorOutOfDateKHR can be checked as a result
     // here and does not need to be caught by an exception.
@@ -110,7 +111,7 @@ void Renderer::Render()
     presentInfoKHR.waitSemaphoreCount = 1;
     presentInfoKHR.pWaitSemaphores = &*VulkanRenderFinishedSemaphores[imageIndex];
     presentInfoKHR.swapchainCount = 1;
-    presentInfoKHR.pSwapchains = &*VulkanSwapChain;
+    presentInfoKHR.pSwapchains = &*SwapChainWrapper->GetSwapChain();
     presentInfoKHR.pImageIndices = &imageIndex;
 
     result = VulkanGraphicsQueue.presentKHR(presentInfoKHR);
@@ -131,57 +132,6 @@ void Renderer::Render()
 
 void Renderer::Shutdown()
 {
-}
-
-void Renderer::CreateSwapChain()
-{
-    auto surfaceCapabilities = VulkanInstanceWrapper->GetPhysicalDevice().getSurfaceCapabilitiesKHR(*VulkanInstanceWrapper->GetSurface());
-    VulkanSwapChainExtent = chooseSwapExtent(surfaceCapabilities);
-    VulkanSwapChainSurfaceFormat = chooseSwapSurfaceFormat(VulkanInstanceWrapper->GetPhysicalDevice().getSurfaceFormatsKHR(*VulkanInstanceWrapper->GetSurface()));
-
-    vk::SwapchainCreateInfoKHR swapChainCreateInfo;
-    swapChainCreateInfo.surface = *VulkanInstanceWrapper->GetSurface();
-    swapChainCreateInfo.minImageCount = chooseSwapMinImageCount(surfaceCapabilities);
-    swapChainCreateInfo.imageFormat = VulkanSwapChainSurfaceFormat.format;
-    swapChainCreateInfo.imageColorSpace = VulkanSwapChainSurfaceFormat.colorSpace;
-    swapChainCreateInfo.imageExtent = VulkanSwapChainExtent;
-    swapChainCreateInfo.imageArrayLayers = 1;
-    swapChainCreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
-    swapChainCreateInfo.imageSharingMode = vk::SharingMode::eExclusive;
-    swapChainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
-    swapChainCreateInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
-    swapChainCreateInfo.presentMode = chooseSwapPresentMode(VulkanInstanceWrapper->GetPhysicalDevice().getSurfacePresentModesKHR(*VulkanInstanceWrapper->GetSurface()));
-    swapChainCreateInfo.clipped = true;
-
-    VulkanSwapChain = vk::raii::SwapchainKHR(VulkanInstanceWrapper->GetLogicalDevice(), swapChainCreateInfo);
-    VulkanSwapChainImages = VulkanSwapChain.getImages();
-}
-
-vk::raii::ImageView Renderer::CreateImageView(vk::raii::Image& image, vk::Format format, vk::ImageAspectFlags aspectFlags)
-{
-    vk::ImageViewCreateInfo viewInfo;
-    viewInfo.image = image;
-    viewInfo.viewType = vk::ImageViewType::e2D;
-    viewInfo.format = format;
-    viewInfo.subresourceRange = { aspectFlags, 0, 1, 0, 1 };
-
-    return vk::raii::ImageView(VulkanInstanceWrapper->GetLogicalDevice(), viewInfo);
-}
-
-void Renderer::CreateImageViews()
-{
-    assert(VulkanSwapChainImageViews.empty());
-
-    vk::ImageViewCreateInfo imageViewCreateInfo;
-    imageViewCreateInfo.viewType = vk::ImageViewType::e2D;
-    imageViewCreateInfo.format = VulkanSwapChainSurfaceFormat.format;
-    imageViewCreateInfo.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-
-    for (auto& image : VulkanSwapChainImages)
-    {
-        imageViewCreateInfo.image = image;
-        VulkanSwapChainImageViews.emplace_back(VulkanInstanceWrapper->GetLogicalDevice(), imageViewCreateInfo);
-    }
 }
 
 void Renderer::CreateDescriptorSetLayout()
@@ -281,9 +231,11 @@ void Renderer::CreateGraphicsPipeline()
 
     vk::Format depthFormat = findDepthFormat();
 
+    vk::Format swapChainFormat = SwapChainWrapper->GetFormat().format;
+
     vk::PipelineRenderingCreateInfo PipelineRenderingCreateInfo;
     PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-    PipelineRenderingCreateInfo.pColorAttachmentFormats = &VulkanSwapChainSurfaceFormat.format;
+    PipelineRenderingCreateInfo.pColorAttachmentFormats = &swapChainFormat;
     PipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat;
 
     vk::GraphicsPipelineCreateInfo GraphicPipelineCreateInfo;
@@ -316,8 +268,8 @@ void Renderer::CreateCommandPool()
 void Renderer::CreateDepthResources()
 {
     vk::Format depthFormat = findDepthFormat();
-    CreateImage(VulkanSwapChainExtent.width, VulkanSwapChainExtent.height, depthFormat, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment, vk::MemoryPropertyFlagBits::eDeviceLocal, depthImage, depthImageMemory);
-    depthImageView = CreateImageView(depthImage, depthFormat, vk::ImageAspectFlagBits::eDepth);
+    CreateImage(SwapChainWrapper->GetExtent().width, SwapChainWrapper->GetExtent().height, depthFormat, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment, vk::MemoryPropertyFlagBits::eDeviceLocal, depthImage, depthImageMemory);
+    depthImageView = SwapChainWrapper->CreateImageView(depthImage, depthFormat, vk::ImageAspectFlagBits::eDepth);
 }
 
 void Renderer::CreateTextureImage()
@@ -437,7 +389,7 @@ void Renderer::CreateImage(uint32_t width, uint32_t height, vk::Format format, v
 
 void Renderer::CreateTextureImageView()
 {
-    textureImageView = CreateImageView(textureImage, vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor);
+    textureImageView = SwapChainWrapper->CreateImageView(textureImage, vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor);
 }
 
 void Renderer::CreateTextureSampler()
@@ -774,7 +726,7 @@ void Renderer::CreateSyncObjects()
 {
     assert(VulkanPresentCompleteSemaphores.empty() && VulkanRenderFinishedSemaphores.empty() && inFlightFences.empty());
 
-    for (size_t i = 0; i < VulkanSwapChainImages.size(); i++)
+    for (size_t i = 0; i < SwapChainWrapper->GetImages().size(); i++)
     {
         VulkanRenderFinishedSemaphores.emplace_back(VulkanInstanceWrapper->GetLogicalDevice(), vk::SemaphoreCreateInfo());
     }
@@ -799,7 +751,7 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage)
     UniformBufferObject ubo{};
     ubo.model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     ubo.view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(VulkanSwapChainExtent.width) / static_cast<float>(VulkanSwapChainExtent.height), 0.1f, 10.0f);
+    ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(SwapChainWrapper->GetExtent().width) / static_cast<float>(SwapChainWrapper->GetExtent().height), 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;
 
     memcpy(VulkanUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
@@ -811,7 +763,7 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     commandBuffer.begin({});
     // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
     transition_image_layout(
-        VulkanSwapChainImages[imageIndex],
+        SwapChainWrapper->GetImages()[imageIndex],
         vk::ImageLayout::eUndefined,
         vk::ImageLayout::eColorAttachmentOptimal,
         {},                                                        // srcAccessMask (no need to wait for previous operations)
@@ -834,7 +786,7 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     vk::ClearValue clearDepth = vk::ClearDepthStencilValue(1.0f, 0);
 
     vk::RenderingAttachmentInfo colorAttachmentInfo;
-    colorAttachmentInfo.setImageView(VulkanSwapChainImageViews[imageIndex]);
+    colorAttachmentInfo.setImageView(SwapChainWrapper->GetImageView(imageIndex));
     colorAttachmentInfo.setImageLayout(vk::ImageLayout::eColorAttachmentOptimal);
     colorAttachmentInfo.setLoadOp(vk::AttachmentLoadOp::eClear);
     colorAttachmentInfo.setStoreOp(vk::AttachmentStoreOp::eStore);
@@ -851,7 +803,7 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
 
     vk::Rect2D rect2d;
     rect2d.offset = vk::Offset2D{ 0, 0 };
-    rect2d.extent = VulkanSwapChainExtent;
+    rect2d.extent = SwapChainWrapper->GetExtent();
 
     renderingInfo.renderArea = rect2d;
     renderingInfo.layerCount = 1;
@@ -861,8 +813,8 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
 
     commandBuffer.beginRendering(renderingInfo);
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *VulkanGraphicsPipeline);
-    commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(VulkanSwapChainExtent.width), static_cast<float>(VulkanSwapChainExtent.height), 0.0f, 1.0f));
-    commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), VulkanSwapChainExtent));
+    commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(SwapChainWrapper->GetExtent().width), static_cast<float>(SwapChainWrapper->GetExtent().height), 0.0f, 1.0f));
+    commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), SwapChainWrapper->GetExtent()));
     commandBuffer.bindVertexBuffers(0, *VulkanVertexBuffer, { 0 });
     commandBuffer.bindIndexBuffer(*VulkanIndexBuffer, 0, vk::IndexType::eUint32);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, VulkanPipelineLayout, 0, *VulkanDescriptorSets[frameIndex], nullptr);
@@ -870,7 +822,7 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     commandBuffer.endRendering();
     // After rendering, transition the swapchain image to PRESENT_SRC
     transition_image_layout(
-        VulkanSwapChainImages[imageIndex],
+        SwapChainWrapper->GetImages()[imageIndex],
         vk::ImageLayout::eColorAttachmentOptimal,
         vk::ImageLayout::ePresentSrcKHR,
         vk::AccessFlagBits2::eColorAttachmentWrite,                // srcAccessMask
@@ -953,24 +905,9 @@ void Renderer::transitionImageLayout(const vk::raii::Image& image, vk::ImageLayo
     endSingleTimeCommands(commandBuffer);
 }
 
-vk::Extent2D Renderer::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities)
-{
-    if (capabilities.currentExtent.width != 0xFFFFFFFF)
-    {
-        return capabilities.currentExtent;
-    }
-    int WindowWidth, WindowHeight;
-    glfwGetFramebufferSize(RendererWindow->getGLFWwindow(), &WindowWidth, &WindowHeight);
-
-    return {
-        std::clamp<uint32_t>(WindowWidth, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
-        std::clamp<uint32_t>(WindowHeight, capabilities.minImageExtent.height, capabilities.maxImageExtent.height) };
-}
-
 void Renderer::CleanupSwapChain()
 {
-    VulkanSwapChainImageViews.clear();
-    VulkanSwapChain = nullptr;
+    SwapChainWrapper->Cleanup();
 }
 
 void Renderer::RecreateSwapChain()
@@ -985,8 +922,6 @@ void Renderer::RecreateSwapChain()
 
     VulkanInstanceWrapper->GetLogicalDevice().waitIdle();
 
-    CleanupSwapChain();
-    CreateSwapChain();
-    CreateImageViews();
+    SwapChainWrapper->Recreate();
     CreateDepthResources();
 }

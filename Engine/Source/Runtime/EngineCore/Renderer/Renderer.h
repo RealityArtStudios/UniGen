@@ -38,6 +38,7 @@ import vulkan_hpp;
 #include <ktx.h>
 
 #include "VulkanInstance/VulkanInstance.h"
+#include "SwapChain.h"
 struct Vertex
 {
 	glm::vec3 pos;
@@ -94,11 +95,11 @@ public:
 	vk::raii::CommandPool& GetCommandPool() { return VulkanCommandPool; }
 	uint32_t GetQueueFamilyIndex() const { return VulkanInstanceWrapper->GetQueueFamilyIndex(); }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
-	vk::raii::SwapchainKHR& GetSwapChain() { return VulkanSwapChain; }
-	vk::Extent2D GetSwapChainExtent() const { return VulkanSwapChainExtent; }
-	vk::SurfaceFormatKHR GetSwapChainFormat() const { return VulkanSwapChainSurfaceFormat; }
-	vk::raii::ImageView& GetSwapChainImageView(uint32_t index) { return VulkanSwapChainImageViews[index]; }
-	const std::vector<vk::Image>& GetSwapChainImages() const { return VulkanSwapChainImages; }
+	vk::raii::SwapchainKHR& GetSwapChain() { return SwapChainWrapper->GetSwapChain(); }
+	vk::Extent2D GetSwapChainExtent() const { return SwapChainWrapper->GetExtent(); }
+	vk::SurfaceFormatKHR GetSwapChainFormat() const { return SwapChainWrapper->GetFormat(); }
+	vk::raii::ImageView& GetSwapChainImageView(uint32_t index) { return SwapChainWrapper->GetImageView(index); }
+	const std::vector<vk::Image>& GetSwapChainImages() const { return SwapChainWrapper->GetImages(); }
 
 	vk::raii::CommandBuffer& GetCurrentCommandBuffer() { return VulkanCommandBuffers[frameIndex]; }
 	vk::raii::DescriptorSet& GetCurrentDescriptorSet() { return VulkanDescriptorSets[frameIndex]; }
@@ -115,10 +116,6 @@ public:
 	vk::raii::DescriptorSetLayout& GetDescriptorSetLayout() { return VulkanDescriptorSetLayout; }
 protected:
 	void RecreateSwapChain();
-	// Vulkan
-	void CreateSwapChain();
-	vk::raii::ImageView CreateImageView(vk::raii::Image& image, vk::Format format, vk::ImageAspectFlags aspectFlags);
-	void CreateImageViews();
 	void CreateDescriptorSetLayout();
 	void CreateGraphicsPipeline();
 	void CreateCommandPool();
@@ -149,38 +146,9 @@ protected:
 
 
 	//helpers function- vulkan
-	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
 	void CleanupSwapChain();
 
-	static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const& surfaceCapabilities)
-	{
-		auto minImageCount = std::max(3u, surfaceCapabilities.minImageCount);
-		if ((0 < surfaceCapabilities.maxImageCount) && (surfaceCapabilities.maxImageCount < minImageCount))
-		{
-			minImageCount = surfaceCapabilities.maxImageCount;
-		}
-		return minImageCount;
-	}
-
-	static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& availableFormats)
-	{
-		assert(!availableFormats.empty());
-		const auto formatIt = std::ranges::find_if(
-			availableFormats,
-			[](const auto& format) { return format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear; });
-		return formatIt != availableFormats.end() ? *formatIt : availableFormats[0];
-	}
-
-	static vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes)
-	{
-		assert(std::ranges::any_of(availablePresentModes, [](auto presentMode) { return presentMode == vk::PresentModeKHR::eFifo; }));
-		return std::ranges::any_of(availablePresentModes,
-			[](const vk::PresentModeKHR value) { return vk::PresentModeKHR::eMailbox == value; }) ?
-			vk::PresentModeKHR::eMailbox :
-			vk::PresentModeKHR::eFifo;
-	}
-
-	void copyBuffer(vk::raii::Buffer& srcBuffer, vk::raii::Buffer& dstBuffer, vk::DeviceSize size)
+	void copyBuffer(vk::raii::Buffer& srcBuffer, vk::raii::Buffer& dstBuffer, vk::DeviceSize size) 
 	{
 		vk::CommandBufferAllocateInfo allocInfo;
 		allocInfo.commandPool = VulkanCommandPool;
@@ -312,12 +280,8 @@ protected:
 protected:
 	//Vulkan
 	std::unique_ptr<VulkanInstance> VulkanInstanceWrapper;
+	std::unique_ptr<SwapChain> SwapChainWrapper;
 	vk::raii::Queue VulkanGraphicsQueue = nullptr;
-	vk::raii::SwapchainKHR           VulkanSwapChain = nullptr;
-	std::vector<vk::Image>           VulkanSwapChainImages;
-	vk::SurfaceFormatKHR             VulkanSwapChainSurfaceFormat;
-	vk::Extent2D                     VulkanSwapChainExtent;
-	std::vector<vk::raii::ImageView> VulkanSwapChainImageViews;
 	vk::raii::DescriptorSetLayout VulkanDescriptorSetLayout = nullptr;
 	vk::raii::PipelineLayout VulkanPipelineLayout = nullptr;
 	vk::raii::Pipeline       VulkanGraphicsPipeline = nullptr;
