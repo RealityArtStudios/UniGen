@@ -40,6 +40,7 @@ import vulkan_hpp;
 #include "VulkanInstance/VulkanInstance.h"
 #include "SwapChain.h"
 #include "Buffer.h"
+#include "TextureManager.h"
 struct Vertex
 {
 	glm::vec3 pos;
@@ -111,13 +112,9 @@ protected:
 	void CreateGraphicsPipeline();
 	void CreateCommandPool();
 	void CreateDepthResources();
-	void CreateTextureImage();
-	void CreateTextureImageWithKTX();
 	void CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling,
 		vk::ImageUsageFlags usage,
 		vk::MemoryPropertyFlags properties, vk::raii::Image& image, vk::raii::DeviceMemory& imageMemory);
-	void CreateTextureImageView();
-	void CreateTextureSampler();
 	void LoadModel();
 	void LoadModelWithGLTF();
 	void UpdateUniformBuffer(uint32_t currentImage);
@@ -129,24 +126,6 @@ protected:
 	void transition_image_layout(vk::Image               image, vk::ImageLayout old_layout, vk::ImageLayout new_layout,
 		vk::AccessFlags2 src_access_mask, vk::AccessFlags2 dst_access_mask,
 		vk::PipelineStageFlags2 src_stage_mask, vk::PipelineStageFlags2 dst_stage_mask, vk::ImageAspectFlags    image_aspect_flags);
-	void transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
-	
-	//Texture
-
-	void copyBufferToImage(const vk::raii::Buffer& buffer, vk::raii::Image& image, uint32_t width, uint32_t height) {
-		vk::raii::CommandBuffer commandBuffer = BufferManagerWrapper->beginSingleTimeCommands(VulkanCommandPool);
-
-		vk::BufferImageCopy region;
-		region.bufferOffset = 0;
-		region.bufferRowLength = 0;
-		region.bufferImageHeight = 0;
-		region.imageSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
-		region.imageOffset = vk::Offset3D{ 0, 0, 0 };
-		region.imageExtent = vk::Extent3D{ width, height, 1 };
-
-		commandBuffer.copyBufferToImage(buffer, image, vk::ImageLayout::eTransferDstOptimal, { region });
-		BufferManagerWrapper->endSingleTimeCommands(commandBuffer);
-	}
 
 	// Depth Buffering (3D)
 	vk::Format findSupportedFormat(const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features)
@@ -182,6 +161,7 @@ protected:
 	std::unique_ptr<VulkanInstance> VulkanInstanceWrapper;
 	std::unique_ptr<SwapChain> SwapChainWrapper;
 	std::unique_ptr<BufferManager> BufferManagerWrapper;
+	std::unique_ptr<TextureManager> TextureManagerWrapper;
 	vk::raii::DescriptorSetLayout VulkanDescriptorSetLayout = nullptr;
 	vk::raii::PipelineLayout VulkanPipelineLayout = nullptr;
 	vk::raii::Pipeline       VulkanGraphicsPipeline = nullptr;
@@ -209,12 +189,6 @@ protected:
 	vk::raii::Image depthImage = nullptr;
 	vk::raii::DeviceMemory depthImageMemory = nullptr;
 	vk::raii::ImageView depthImageView = nullptr;
-
-	//Texture
-	vk::raii::Image textureImage = nullptr;
-	vk::raii::DeviceMemory textureImageMemory = nullptr;
-	vk::raii::ImageView textureImageView = nullptr;
-	vk::raii::Sampler textureSampler = nullptr;
 
 	//Model
 	std::vector<Vertex> vertices;

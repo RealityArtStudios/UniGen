@@ -2,7 +2,6 @@
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
 
 #include "Renderer.h"
 #include <chrono>
@@ -10,6 +9,7 @@
 #include "Runtime/EngineCore/Window.h"
 #include "Runtime/EngineCore/FileSystem/FileSystem.h"
 #include "Runtime/EngineCore/Shader/Shader.h"
+#include "TextureManager.h"
 
 
 //TODO: File system and ecs load objedct and set the filepath
@@ -24,7 +24,7 @@ const std::vector<char const*> validationLayers = {
 constexpr int      MAX_FRAMES_IN_FLIGHT = 2;
 
 Renderer::Renderer(Window* InWindow)
-	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr), BufferManagerWrapper(nullptr)
+	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr), BufferManagerWrapper(nullptr), TextureManagerWrapper(nullptr)
 {
 
 }
@@ -47,10 +47,8 @@ void Renderer::Initialize()
     CreateGraphicsPipeline();
     CreateCommandPool();
     CreateDepthResources();
-    CreateTextureImage();
-    // CreateTextureImageWithKTX();
-    CreateTextureImageView();
-    CreateTextureSampler();
+    TextureManagerWrapper = std::make_unique<TextureManager>(VulkanInstanceWrapper.get(), SwapChainWrapper.get(), BufferManagerWrapper.get(), VulkanCommandPool);
+    TextureManagerWrapper->Initialize(TEXTURE_PATH);
     //LoadModel();
     LoadModelWithGLTF();
     BufferManagerWrapper->CreateVertexBuffer(vertices, VulkanVertexBuffer, VulkanVertexBufferMemory, VulkanCommandPool, VulkanInstanceWrapper->GetGraphicsQueue());
@@ -275,96 +273,6 @@ void Renderer::CreateDepthResources()
     depthImageView = SwapChainWrapper->CreateImageView(depthImage, depthFormat, vk::ImageAspectFlagBits::eDepth);
 }
 
-void Renderer::CreateTextureImage()
-{
-    int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-    vk::DeviceSize imageSize = texWidth * texHeight * 4;
-
-    if (!pixels) {
-        throw std::runtime_error("failed to load texture image!");
-    }
-
-    vk::raii::Buffer stagingBuffer({});
-    vk::raii::DeviceMemory stagingBufferMemory({});
-
-    BufferManagerWrapper->CreateBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
-
-    void* data = stagingBufferMemory.mapMemory(0, imageSize);
-    memcpy(data, pixels, imageSize);
-    stagingBufferMemory.unmapMemory();
-
-    stbi_image_free(pixels);
-
-    CreateImage(texWidth, texHeight, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, vk::MemoryPropertyFlagBits::eDeviceLocal, textureImage, textureImageMemory);
-
-    transitionImageLayout(textureImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-    copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-    transitionImageLayout(textureImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
-
-}
-
-void Renderer::CreateTextureImageWithKTX() {
-    /*// Load KTX2 texture instead of using stb_image
-    ktxTexture* kTexture;
-    KTX_error_code result = ktxTexture_CreateFromNamedFile(
-        TEXTURE_PATH.c_str(),
-        KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT,
-        &kTexture);
-
-    if (result != KTX_SUCCESS)
-    {
-        throw std::runtime_error("failed to load ktx texture image!");
-    }
-
-    // Get texture dimensions and data
-    uint32_t     texWidth = kTexture->baseWidth;
-    uint32_t     texHeight = kTexture->baseHeight;
-    ktx_size_t   imageSize = ktxTexture_GetImageSize(kTexture, 0);
-    ktx_uint8_t* ktxTextureData = ktxTexture_GetData(kTexture);
-
-    vk::raii::Buffer       stagingBuffer({});
-    vk::raii::DeviceMemory stagingBufferMemory({});
-    createBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, stagingBuffer, stagingBufferMemory);
-
-    void* data = stagingBufferMemory.mapMemory(0, imageSize);
-    memcpy(data, ktxTextureData, imageSize);
-    stagingBufferMemory.unmapMemory();
-
-    // Determine the Vulkan format from KTX format
-    vk::Format textureFormat;
-
-    // Check if the KTX texture has a format
-    if (kTexture->classId == ktxTexture2_c)
-    {
-        // For KTX2 files, we can get the format directly
-        auto* ktx2 = reinterpret_cast<ktxTexture2*>(kTexture);
-        textureFormat = static_cast<vk::Format>(ktx2->vkFormat);
-        if (textureFormat == vk::Format::eUndefined)
-        {
-            // If the format is undefined, fall back to a reasonable default
-            textureFormat = vk::Format::eR8G8B8A8Unorm;
-        }
-    }
-    else
-    {
-        // For KTX1 files or if we can't determine the format, use a reasonable default
-        textureFormat = vk::Format::eR8G8B8A8Unorm;
-    }
-
-    textureImageFormat = textureFormat;
-
-    createImage(texWidth, texHeight, textureFormat, vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-        vk::MemoryPropertyFlagBits::eDeviceLocal, textureImage, textureImageMemory);
-
-    transitionImageLayout(textureImage, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
-    copyBufferToImage(stagingBuffer, textureImage, texWidth, texHeight);
-    transitionImageLayout(textureImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
-
-    ktxTexture_Destroy(kTexture);*/
-}
-
 void Renderer::CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::raii::Image& image, vk::raii::DeviceMemory& imageMemory)
 {
     vk::ImageCreateInfo imageInfo;
@@ -388,30 +296,6 @@ void Renderer::CreateImage(uint32_t width, uint32_t height, vk::Format format, v
 
     imageMemory = vk::raii::DeviceMemory(VulkanInstanceWrapper->GetLogicalDevice(), allocInfo);
     image.bindMemory(imageMemory, 0);
-}
-
-void Renderer::CreateTextureImageView()
-{
-    textureImageView = SwapChainWrapper->CreateImageView(textureImage, vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor);
-}
-
-void Renderer::CreateTextureSampler()
-{
-    vk::PhysicalDeviceProperties properties = VulkanInstanceWrapper->GetPhysicalDevice().getProperties();
-    vk::SamplerCreateInfo samplerInfo;
-    samplerInfo.magFilter = vk::Filter::eLinear;
-    samplerInfo.minFilter = vk::Filter::eLinear;
-    samplerInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
-    samplerInfo.addressModeU = vk::SamplerAddressMode::eRepeat;
-    samplerInfo.addressModeV = vk::SamplerAddressMode::eRepeat;
-    samplerInfo.addressModeW = vk::SamplerAddressMode::eRepeat;
-    samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.anisotropyEnable = vk::True;
-    samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-    samplerInfo.compareEnable = vk::False;
-    samplerInfo.compareOp = vk::CompareOp::eAlways;
-
-    textureSampler = vk::raii::Sampler(VulkanInstanceWrapper->GetLogicalDevice(), samplerInfo);
 }
 
 void Renderer::LoadModel()
@@ -620,8 +504,8 @@ void Renderer::CreateDescriptorSets()
         bufferInfo.range = sizeof(UniformBufferObject);
 
         vk::DescriptorImageInfo imageInfo;
-        imageInfo.sampler = textureSampler;
-        imageInfo.imageView = textureImageView;
+        imageInfo.sampler = *TextureManagerWrapper->GetTextureSampler();
+        imageInfo.imageView = *TextureManagerWrapper->GetTextureImageView();
         imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
         vk::WriteDescriptorSet bufferdescriptorWrite;
@@ -801,41 +685,4 @@ void Renderer::transition_image_layout(
     dependency_info.pImageMemoryBarriers = &barrier;
 
     VulkanCommandBuffers[frameIndex].pipelineBarrier2(dependency_info);
-}
-
-void Renderer::transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout)
-{
-    auto commandBuffer = BufferManagerWrapper->beginSingleTimeCommands(VulkanCommandPool);
-    vk::ImageMemoryBarrier barrier;
-    barrier.oldLayout = oldLayout;
-    barrier.newLayout = newLayout;
-    barrier.image = image;
-    barrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-
-    vk::PipelineStageFlags sourceStage;
-    vk::PipelineStageFlags destinationStage;
-
-    if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal)
-    {
-        barrier.srcAccessMask = {};
-        barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
-
-        sourceStage = vk::PipelineStageFlagBits::eTopOfPipe;
-        destinationStage = vk::PipelineStageFlagBits::eTransfer;
-    }
-    else if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal)
-    {
-        barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
-        barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-
-        sourceStage = vk::PipelineStageFlagBits::eTransfer;
-        destinationStage = vk::PipelineStageFlagBits::eFragmentShader;
-    }
-    else
-    {
-        throw std::invalid_argument("unsupported layout transition!");
-    }
-    commandBuffer.pipelineBarrier(sourceStage, destinationStage, {}, {}, nullptr, barrier);
-
-    BufferManagerWrapper->endSingleTimeCommands(commandBuffer);
 }
