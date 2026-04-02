@@ -34,6 +34,7 @@ import vulkan_hpp;
 #include "Mesh.h"
 #include "PipelineManager.h"
 #include "CommandPool.h"
+#include "CommandBufferManager.h"
 
 
 class Window;
@@ -49,7 +50,6 @@ public:
 	void Shutdown();
 	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
-	vk::raii::CommandBuffer& GetCurrentCommandBuffer() { return VulkanCommandBuffers[frameIndex]; }
 	vk::raii::DescriptorSet& GetCurrentDescriptorSet() { return VulkanDescriptorSets[frameIndex]; }
 
 	// Mesh data access
@@ -65,7 +65,6 @@ protected:
 	void UpdateUniformBuffer(uint32_t currentImage);
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
-	void CreateCommandBuffers();
 	void CreateSyncObjects();
 	void recordCommandBuffer(uint32_t imageIndex);
 	void transition_image_layout(vk::Image               image, vk::ImageLayout old_layout, vk::ImageLayout new_layout,
@@ -93,11 +92,11 @@ protected:
 	std::unique_ptr<VulkanInstance> VulkanInstanceWrapper;
 	std::unique_ptr<SwapChain> SwapChainWrapper;
 	std::unique_ptr<CommandPool> CommandPoolWrapper;
+	std::unique_ptr<CommandBufferManager> CommandBufferManagerWrapper;
 	std::unique_ptr<BufferManager> BufferManagerWrapper;
 	std::unique_ptr<TextureManager> TextureManagerWrapper;
 	std::unique_ptr<PipelineManager> PipelineManagerWrapper;
 	std::unique_ptr<Mesh> MeshData;
-	std::vector < vk::raii::CommandBuffer>  VulkanCommandBuffers;
 	std::vector < vk::raii::Semaphore> VulkanPresentCompleteSemaphores;
 	std::vector < vk::raii::Semaphore> VulkanRenderFinishedSemaphores;
 	vk::raii::Fence     VulkanDrawFence = nullptr;

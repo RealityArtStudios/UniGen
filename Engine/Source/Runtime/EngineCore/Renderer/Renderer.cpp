@@ -56,7 +56,7 @@ void Renderer::Initialize()
     BufferManagerWrapper->CreateUniformBuffers(MAX_FRAMES_IN_FLIGHT, VulkanUniformBuffers, VulkanUniformBuffersMemory, VulkanUniformBuffersMapped);
     CreateDescriptorPool();
     CreateDescriptorSets();
-    CreateCommandBuffers();
+    CommandBufferManagerWrapper = std::make_unique<CommandBufferManager>(VulkanInstanceWrapper.get(), CommandPoolWrapper.get(), MAX_FRAMES_IN_FLIGHT);
     CreateSyncObjects();
 }
 
@@ -92,7 +92,7 @@ void Renderer::Render()
     // Only reset the fence if we are submitting work
     VulkanInstanceWrapper->GetLogicalDevice().resetFences(*inFlightFences[frameIndex]);
 
-    VulkanCommandBuffers[frameIndex].reset();
+    CommandBufferManagerWrapper->GetCurrentCommandBuffer(frameIndex).reset();
     recordCommandBuffer(imageIndex);
 
     vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
@@ -101,7 +101,7 @@ void Renderer::Render()
     submitInfo.pWaitSemaphores = &*VulkanPresentCompleteSemaphores[frameIndex];
     submitInfo.pWaitDstStageMask = &waitDestinationStageMask;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &*VulkanCommandBuffers[frameIndex];
+    submitInfo.pCommandBuffers = &*CommandBufferManagerWrapper->GetCurrentCommandBuffer(frameIndex);
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &*VulkanRenderFinishedSemaphores[imageIndex];
 
@@ -226,18 +226,6 @@ void Renderer::CreateDescriptorSets()
     }
 }
 
-void Renderer::CreateCommandBuffers()
-{
-    VulkanCommandBuffers.clear();
-
-    vk::CommandBufferAllocateInfo allocInfo;
-    allocInfo.commandPool = CommandPoolWrapper->GetCommandPool();
-    allocInfo.level = vk::CommandBufferLevel::ePrimary;
-    allocInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
-
-    VulkanCommandBuffers = vk::raii::CommandBuffers(VulkanInstanceWrapper->GetLogicalDevice(), allocInfo);
-}
-
 void Renderer::CreateSyncObjects()
 {
     assert(VulkanPresentCompleteSemaphores.empty() && VulkanRenderFinishedSemaphores.empty() && inFlightFences.empty());
@@ -275,7 +263,7 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage)
 
 void Renderer::recordCommandBuffer(uint32_t imageIndex)
 {
-    auto& commandBuffer = VulkanCommandBuffers[frameIndex];
+    auto& commandBuffer = CommandBufferManagerWrapper->GetCurrentCommandBuffer(frameIndex);
     commandBuffer.begin({});
     // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
     transition_image_layout(
@@ -381,5 +369,5 @@ void Renderer::transition_image_layout(
     dependency_info.imageMemoryBarrierCount = 1;
     dependency_info.pImageMemoryBarriers = &barrier;
 
-    VulkanCommandBuffers[frameIndex].pipelineBarrier2(dependency_info);
+    CommandBufferManagerWrapper->GetCurrentCommandBuffer(frameIndex).pipelineBarrier2(dependency_info);
 }
