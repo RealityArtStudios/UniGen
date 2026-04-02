@@ -35,6 +35,7 @@ import vulkan_hpp;
 #include "PipelineManager.h"
 #include "CommandPool.h"
 #include "CommandBufferManager.h"
+#include "DescriptorManager.h"
 
 
 class Window;
@@ -50,7 +51,6 @@ public:
 	void Shutdown();
 	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
-	vk::raii::DescriptorSet& GetCurrentDescriptorSet() { return VulkanDescriptorSets[frameIndex]; }
 
 	// Mesh data access
 	const Mesh& GetMesh() const { return *MeshData; }
@@ -63,8 +63,6 @@ protected:
 		vk::ImageUsageFlags usage,
 		vk::MemoryPropertyFlags properties, vk::raii::Image& image, vk::raii::DeviceMemory& imageMemory);
 	void UpdateUniformBuffer(uint32_t currentImage);
-	void CreateDescriptorPool();
-	void CreateDescriptorSets();
 	void CreateSyncObjects();
 	void recordCommandBuffer(uint32_t imageIndex);
 	void transition_image_layout(vk::Image               image, vk::ImageLayout old_layout, vk::ImageLayout new_layout,
@@ -93,6 +91,7 @@ protected:
 	std::unique_ptr<SwapChain> SwapChainWrapper;
 	std::unique_ptr<CommandPool> CommandPoolWrapper;
 	std::unique_ptr<CommandBufferManager> CommandBufferManagerWrapper;
+	std::unique_ptr<DescriptorManager> DescriptorManagerWrapper;
 	std::unique_ptr<BufferManager> BufferManagerWrapper;
 	std::unique_ptr<TextureManager> TextureManagerWrapper;
 	std::unique_ptr<PipelineManager> PipelineManagerWrapper;
@@ -104,13 +103,8 @@ protected:
 	vk::raii::DeviceMemory VulkanVertexBufferMemory = nullptr;
 	vk::raii::Buffer VulkanIndexBuffer = nullptr;
 	vk::raii::DeviceMemory VulkanIndexBufferMemory = nullptr;
-	std::vector<vk::raii::Buffer> VulkanUniformBuffers;
-	std::vector<vk::raii::DeviceMemory> VulkanUniformBuffersMemory;
-	std::vector<void*> VulkanUniformBuffersMapped;
 	std::vector<vk::raii::Fence>     inFlightFences;
 	uint32_t                         frameIndex = 0;
-	vk::raii::DescriptorPool VulkanDescriptorPool = nullptr;
-	std::vector<vk::raii::DescriptorSet> VulkanDescriptorSets;
 
 	std::vector<const char*> VulkanRequiredDeviceExtension = { vk::KHRSwapchainExtensionName,
 		vk::KHRSpirv14ExtensionName,

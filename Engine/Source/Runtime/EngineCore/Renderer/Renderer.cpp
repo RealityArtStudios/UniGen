@@ -21,7 +21,7 @@ const std::vector<char const*> validationLayers = {
 constexpr int      MAX_FRAMES_IN_FLIGHT = 2;
 
 Renderer::Renderer(Window* InWindow)
-	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr), BufferManagerWrapper(nullptr), TextureManagerWrapper(nullptr), PipelineManagerWrapper(nullptr), MeshData(nullptr)
+	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr), BufferManagerWrapper(nullptr), TextureManagerWrapper(nullptr), PipelineManagerWrapper(nullptr), MeshData(nullptr), DescriptorManagerWrapper(nullptr)
 {
 
 }
@@ -53,9 +53,14 @@ void Renderer::Initialize()
     
     BufferManagerWrapper->CreateVertexBuffer(MeshData->GetVertices(), VulkanVertexBuffer, VulkanVertexBufferMemory, CommandPoolWrapper->GetCommandPool(), VulkanInstanceWrapper->GetGraphicsQueue());
     BufferManagerWrapper->CreateIndexBuffer(MeshData->GetIndices(), VulkanIndexBuffer, VulkanIndexBufferMemory, CommandPoolWrapper->GetCommandPool(), VulkanInstanceWrapper->GetGraphicsQueue());
-    BufferManagerWrapper->CreateUniformBuffers(MAX_FRAMES_IN_FLIGHT, VulkanUniformBuffers, VulkanUniformBuffersMemory, VulkanUniformBuffersMapped);
-    CreateDescriptorPool();
-    CreateDescriptorSets();
+    DescriptorManagerWrapper = std::make_unique<DescriptorManager>(VulkanInstanceWrapper.get(), MAX_FRAMES_IN_FLIGHT);
+    std::vector<vk::raii::Buffer> uniformBuffers;
+    std::vector<vk::raii::DeviceMemory> uniformBuffersMemory;
+    std::vector<void*> uniformBuffersMapped;
+    BufferManagerWrapper->CreateUniformBuffers(MAX_FRAMES_IN_FLIGHT, uniformBuffers, uniformBuffersMemory, uniformBuffersMapped);
+    DescriptorManagerWrapper->SetUniformBuffers(uniformBuffers, uniformBuffersMemory, uniformBuffersMapped);
+    DescriptorManagerWrapper->CreateDescriptorPool();
+    DescriptorManagerWrapper->CreateDescriptorSets(PipelineManagerWrapper.get(), TextureManagerWrapper.get(), MeshData.get());
     CommandBufferManagerWrapper = std::make_unique<CommandBufferManager>(VulkanInstanceWrapper.get(), CommandPoolWrapper.get(), MAX_FRAMES_IN_FLIGHT);
     CreateSyncObjects();
 }
@@ -167,65 +172,6 @@ void Renderer::CreateImage(uint32_t width, uint32_t height, vk::Format format, v
     image.bindMemory(imageMemory, 0);
 }
 
-void Renderer::CreateDescriptorPool()
-{
-    std::array poolSize{
-     vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT),
-     vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, MAX_FRAMES_IN_FLIGHT)
-    };
-    vk::DescriptorPoolCreateInfo poolInfo;
-    poolInfo.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
-    poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
-    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSize.size());
-    poolInfo.pPoolSizes = poolSize.data();
-
-    VulkanDescriptorPool = vk::raii::DescriptorPool(VulkanInstanceWrapper->GetLogicalDevice(), poolInfo);
-}
-
-void Renderer::CreateDescriptorSets()
-{
-    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *PipelineManagerWrapper->GetDescriptorSetLayout());
-    vk::DescriptorSetAllocateInfo allocInfo;
-    allocInfo.descriptorPool = VulkanDescriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(layouts.size());
-    allocInfo.pSetLayouts = layouts.data();
-
-    VulkanDescriptorSets.clear();
-    VulkanDescriptorSets = VulkanInstanceWrapper->GetLogicalDevice().allocateDescriptorSets(allocInfo);
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-    {
-        vk::DescriptorBufferInfo bufferInfo;
-        bufferInfo.buffer = VulkanUniformBuffers[i];
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(Mesh::UniformBufferObject);
-
-        vk::DescriptorImageInfo imageInfo;
-        imageInfo.sampler = *TextureManagerWrapper->GetTextureSampler();
-        imageInfo.imageView = *TextureManagerWrapper->GetTextureImageView();
-        imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-
-        vk::WriteDescriptorSet bufferdescriptorWrite;
-        bufferdescriptorWrite.dstSet = VulkanDescriptorSets[i];
-        bufferdescriptorWrite.dstBinding = 0;
-        bufferdescriptorWrite.dstArrayElement = 0;
-        bufferdescriptorWrite.descriptorCount = 1;
-        bufferdescriptorWrite.descriptorType = vk::DescriptorType::eUniformBuffer;
-        bufferdescriptorWrite.pBufferInfo = &bufferInfo;
-
-        vk::WriteDescriptorSet imageinfodescriptorWrite;
-        imageinfodescriptorWrite.dstSet = VulkanDescriptorSets[i];
-        imageinfodescriptorWrite.dstBinding = 1;
-        imageinfodescriptorWrite.dstArrayElement = 0;
-        imageinfodescriptorWrite.descriptorCount = 1;
-        imageinfodescriptorWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-        imageinfodescriptorWrite.pImageInfo = &imageInfo;
-
-        std::array descriptorWrites{ bufferdescriptorWrite , imageinfodescriptorWrite };
-        VulkanInstanceWrapper->GetLogicalDevice().updateDescriptorSets(descriptorWrites, {});
-    }
-}
-
 void Renderer::CreateSyncObjects()
 {
     assert(VulkanPresentCompleteSemaphores.empty() && VulkanRenderFinishedSemaphores.empty() && inFlightFences.empty());
@@ -258,7 +204,7 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage)
     ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(SwapChainWrapper->GetExtent().width) / static_cast<float>(SwapChainWrapper->GetExtent().height), 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;
 
-    memcpy(VulkanUniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+    DescriptorManagerWrapper->UpdateUniformBuffer(currentImage, ubo);
 }
 
 void Renderer::recordCommandBuffer(uint32_t imageIndex)
@@ -321,7 +267,7 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), SwapChainWrapper->GetExtent()));
     commandBuffer.bindVertexBuffers(0, *VulkanVertexBuffer, { 0 });
     commandBuffer.bindIndexBuffer(*VulkanIndexBuffer, 0, vk::IndexType::eUint32);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *PipelineManagerWrapper->GetPipelineLayout(), 0, *VulkanDescriptorSets[frameIndex], nullptr);
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *PipelineManagerWrapper->GetPipelineLayout(), 0, *DescriptorManagerWrapper->GetCurrentDescriptorSet(frameIndex), nullptr);
     commandBuffer.drawIndexed(MeshData->GetIndexCount(), 1, 0, 0, 0);
     commandBuffer.endRendering();
     // After rendering, transition the swapchain image to PRESENT_SRC
