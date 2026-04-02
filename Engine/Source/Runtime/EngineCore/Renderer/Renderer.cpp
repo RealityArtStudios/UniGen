@@ -44,15 +44,15 @@ void Renderer::Initialize()
     PipelineManagerWrapper->CreateDescriptorSetLayout();
     PipelineManagerWrapper->CreateGraphicsPipeline();
 
-    CreateCommandPool();
+    CommandPoolWrapper = std::make_unique<CommandPool>(VulkanInstanceWrapper.get());
     CreateDepthResources();
-    TextureManagerWrapper = std::make_unique<TextureManager>(VulkanInstanceWrapper.get(), SwapChainWrapper.get(), BufferManagerWrapper.get(), VulkanCommandPool);
+    TextureManagerWrapper = std::make_unique<TextureManager>(VulkanInstanceWrapper.get(), SwapChainWrapper.get(), BufferManagerWrapper.get(), CommandPoolWrapper->GetCommandPool());
     TextureManagerWrapper->Initialize(TEXTURE_PATH);
     
     MeshData = std::make_unique<Mesh>(MODEL_PATH);
     
-    BufferManagerWrapper->CreateVertexBuffer(MeshData->GetVertices(), VulkanVertexBuffer, VulkanVertexBufferMemory, VulkanCommandPool, VulkanInstanceWrapper->GetGraphicsQueue());
-    BufferManagerWrapper->CreateIndexBuffer(MeshData->GetIndices(), VulkanIndexBuffer, VulkanIndexBufferMemory, VulkanCommandPool, VulkanInstanceWrapper->GetGraphicsQueue());
+    BufferManagerWrapper->CreateVertexBuffer(MeshData->GetVertices(), VulkanVertexBuffer, VulkanVertexBufferMemory, CommandPoolWrapper->GetCommandPool(), VulkanInstanceWrapper->GetGraphicsQueue());
+    BufferManagerWrapper->CreateIndexBuffer(MeshData->GetIndices(), VulkanIndexBuffer, VulkanIndexBufferMemory, CommandPoolWrapper->GetCommandPool(), VulkanInstanceWrapper->GetGraphicsQueue());
     BufferManagerWrapper->CreateUniformBuffers(MAX_FRAMES_IN_FLIGHT, VulkanUniformBuffers, VulkanUniformBuffersMemory, VulkanUniformBuffersMapped);
     CreateDescriptorPool();
     CreateDescriptorSets();
@@ -133,15 +133,6 @@ void Renderer::Render()
 
 void Renderer::Shutdown()
 {
-}
-
-void Renderer::CreateCommandPool()
-{
-    vk::CommandPoolCreateInfo poolInfo;
-    poolInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-    poolInfo.queueFamilyIndex = VulkanInstanceWrapper->GetQueueFamilyIndex();
-
-    VulkanCommandPool = vk::raii::CommandPool(VulkanInstanceWrapper->GetLogicalDevice(), poolInfo);
 }
 
 void Renderer::CreateDepthResources()
@@ -240,7 +231,7 @@ void Renderer::CreateCommandBuffers()
     VulkanCommandBuffers.clear();
 
     vk::CommandBufferAllocateInfo allocInfo;
-    allocInfo.commandPool = VulkanCommandPool;
+    allocInfo.commandPool = CommandPoolWrapper->GetCommandPool();
     allocInfo.level = vk::CommandBufferLevel::ePrimary;
     allocInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
 

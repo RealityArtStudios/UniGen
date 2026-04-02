@@ -33,6 +33,7 @@ import vulkan_hpp;
 #include "TextureManager.h"
 #include "Mesh.h"
 #include "PipelineManager.h"
+#include "CommandPool.h"
 
 
 class Window;
@@ -47,7 +48,6 @@ public:
 	void Render();
 	void Shutdown();
 	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
-	vk::raii::CommandPool& GetCommandPool() { return VulkanCommandPool; }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
 	vk::raii::CommandBuffer& GetCurrentCommandBuffer() { return VulkanCommandBuffers[frameIndex]; }
 	vk::raii::DescriptorSet& GetCurrentDescriptorSet() { return VulkanDescriptorSets[frameIndex]; }
@@ -58,7 +58,6 @@ public:
 	vk::raii::Buffer& GetVertexBuffer() { return VulkanVertexBuffer; }
 	vk::raii::Buffer& GetIndexBuffer() { return VulkanIndexBuffer; }
 protected:
-	void CreateCommandPool();
 	void CreateDepthResources();
 	void CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling,
 		vk::ImageUsageFlags usage,
@@ -93,11 +92,11 @@ protected:
 	//Vulkan
 	std::unique_ptr<VulkanInstance> VulkanInstanceWrapper;
 	std::unique_ptr<SwapChain> SwapChainWrapper;
+	std::unique_ptr<CommandPool> CommandPoolWrapper;
 	std::unique_ptr<BufferManager> BufferManagerWrapper;
 	std::unique_ptr<TextureManager> TextureManagerWrapper;
 	std::unique_ptr<PipelineManager> PipelineManagerWrapper;
 	std::unique_ptr<Mesh> MeshData;
-	vk::raii::CommandPool VulkanCommandPool = nullptr;
 	std::vector < vk::raii::CommandBuffer>  VulkanCommandBuffers;
 	std::vector < vk::raii::Semaphore> VulkanPresentCompleteSemaphores;
 	std::vector < vk::raii::Semaphore> VulkanRenderFinishedSemaphores;
