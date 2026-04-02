@@ -21,7 +21,7 @@ const std::vector<char const*> validationLayers = {
 constexpr int      MAX_FRAMES_IN_FLIGHT = 2;
 
 Renderer::Renderer(Window* InWindow)
-	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr), BufferManagerWrapper(nullptr), TextureManagerWrapper(nullptr), MeshData(nullptr)
+	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr), BufferManagerWrapper(nullptr), TextureManagerWrapper(nullptr), PipelineManagerWrapper(nullptr), MeshData(nullptr)
 {
 
 }
@@ -40,8 +40,10 @@ void Renderer::Initialize()
 
     BufferManagerWrapper = std::make_unique<BufferManager>(VulkanInstanceWrapper.get());
 
-    CreateDescriptorSetLayout();
-    CreateGraphicsPipeline();
+    PipelineManagerWrapper = std::make_unique<PipelineManager>(VulkanInstanceWrapper.get(), SwapChainWrapper.get());
+    PipelineManagerWrapper->CreateDescriptorSetLayout();
+    PipelineManagerWrapper->CreateGraphicsPipeline();
+
     CreateCommandPool();
     CreateDepthResources();
     TextureManagerWrapper = std::make_unique<TextureManager>(VulkanInstanceWrapper.get(), SwapChainWrapper.get(), BufferManagerWrapper.get(), VulkanCommandPool);
@@ -133,128 +135,6 @@ void Renderer::Shutdown()
 {
 }
 
-void Renderer::CreateDescriptorSetLayout()
-{
-    //Create Uniform Buffer Object Layout Binding
-    std::array bindings = {
-      vk::DescriptorSetLayoutBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex, nullptr),
-      vk::DescriptorSetLayoutBinding(1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, nullptr)
-    };
-
-    vk::DescriptorSetLayoutCreateInfo layoutInfo({}, bindings.size(), bindings.data());
-
-    VulkanDescriptorSetLayout = vk::raii::DescriptorSetLayout(VulkanInstanceWrapper->GetLogicalDevice(), layoutInfo);
-}
-
-void Renderer::CreateGraphicsPipeline()
-{
-    //@TODO: Move file system initialization outside of Renderer. should be in GameEngine level
-    Shader* shaderSystem = new Shader();
-    FileSystem* fileSystem  = new FileSystem();
-    vk::raii::ShaderModule VertexShaderModule = shaderSystem->CreateShaderModule(fileSystem->ReadFile("../Engine/Binaries/Shaders/ShaderType_Vertex.spv"), VulkanInstanceWrapper->GetLogicalDevice());
-    vk::raii::ShaderModule FragmentShaderModule = shaderSystem->CreateShaderModule(fileSystem->ReadFile("../Engine/Binaries/Shaders/ShaderTypes_Fragment.spv"), VulkanInstanceWrapper->GetLogicalDevice());
-    
-    vk::PipelineShaderStageCreateInfo VertShaderStageInfo;
-    VertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
-    VertShaderStageInfo.module = VertexShaderModule;
-    VertShaderStageInfo.pName = "main";
-
-    vk::PipelineShaderStageCreateInfo FragShaderStageInfo{};
-    FragShaderStageInfo.stage = vk::ShaderStageFlagBits::eFragment;
-    FragShaderStageInfo.module = FragmentShaderModule;
-    FragShaderStageInfo.pName = "main";
-
-    vk::PipelineShaderStageCreateInfo ShaderStages[] = { VertShaderStageInfo, FragShaderStageInfo };
-
-    // Graphic Pipeline
-    auto bindingDescription = Mesh::Vertex::GetBindingDescription();
-    auto attributeDescriptions = Mesh::Vertex::GetAttributeDescriptions();
-
-    vk::PipelineVertexInputStateCreateInfo   vertexInputInfo;//<--- InputAssembly
-    vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
-
-    vk::PipelineInputAssemblyStateCreateInfo inputAssembly;
-    inputAssembly.topology = vk::PrimitiveTopology::eTriangleList;
-    inputAssembly.primitiveRestartEnable = vk::False;
-
-    vk::PipelineViewportStateCreateInfo viewportState;
-    viewportState.viewportCount = 1;
-    viewportState.scissorCount = 1;
-
-    vk::PipelineRasterizationStateCreateInfo rasterizer;//<--- Rasterizer Stages
-    rasterizer.depthClampEnable = vk::False;
-    rasterizer.rasterizerDiscardEnable = vk::False;
-    rasterizer.polygonMode = vk::PolygonMode::eFill;
-    rasterizer.cullMode = vk::CullModeFlagBits::eBack;
-    rasterizer.frontFace = vk::FrontFace::eCounterClockwise;
-    rasterizer.depthBiasEnable = vk::False;
-    rasterizer.lineWidth = 1.0f;
-
-    vk::PipelineMultisampleStateCreateInfo multisampling;
-    multisampling.rasterizationSamples = vk::SampleCountFlagBits::e1;
-    multisampling.sampleShadingEnable = vk::False;
-
-    vk::PipelineDepthStencilStateCreateInfo depthStencil;
-    depthStencil.depthTestEnable = vk::True;
-    depthStencil.depthWriteEnable = vk::True;
-    depthStencil.depthCompareOp = vk::CompareOp::eLess;
-    depthStencil.depthBoundsTestEnable = vk::False;
-    depthStencil.stencilTestEnable = vk::False;
-
-    vk::PipelineColorBlendAttachmentState colorBlendAttachment;
-    colorBlendAttachment.blendEnable = vk::False;
-    colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-
-    vk::PipelineColorBlendStateCreateInfo colorBlending;
-    colorBlending.logicOpEnable = vk::False;
-    colorBlending.logicOp = vk::LogicOp::eCopy;
-    colorBlending.attachmentCount = 1;
-    colorBlending.pAttachments = &colorBlendAttachment;
-
-    std::vector dynamicStates = {
-        vk::DynamicState::eViewport,
-        vk::DynamicState::eScissor };
-    vk::PipelineDynamicStateCreateInfo dynamicState;
-    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-    dynamicState.pDynamicStates = dynamicStates.data();
-
-    vk::PipelineLayoutCreateInfo pipelineLayoutInfo;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &*VulkanDescriptorSetLayout;
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
-
-    VulkanPipelineLayout = vk::raii::PipelineLayout(VulkanInstanceWrapper->GetLogicalDevice(), pipelineLayoutInfo);
-
-    vk::Format depthFormat = findDepthFormat();
-
-    vk::Format swapChainFormat = SwapChainWrapper->GetFormat().format;
-
-    vk::PipelineRenderingCreateInfo PipelineRenderingCreateInfo;
-    PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-    PipelineRenderingCreateInfo.pColorAttachmentFormats = &swapChainFormat;
-    PipelineRenderingCreateInfo.depthAttachmentFormat = depthFormat;
-
-    vk::GraphicsPipelineCreateInfo GraphicPipelineCreateInfo;
-    GraphicPipelineCreateInfo.stageCount = 2;
-    GraphicPipelineCreateInfo.pStages = ShaderStages;
-    GraphicPipelineCreateInfo.pVertexInputState = &vertexInputInfo;
-    GraphicPipelineCreateInfo.pInputAssemblyState = &inputAssembly;
-    GraphicPipelineCreateInfo.pViewportState = &viewportState;
-    GraphicPipelineCreateInfo.pRasterizationState = &rasterizer;
-    GraphicPipelineCreateInfo.pMultisampleState = &multisampling;
-    GraphicPipelineCreateInfo.pColorBlendState = &colorBlending;
-    GraphicPipelineCreateInfo.pDynamicState = &dynamicState;
-    GraphicPipelineCreateInfo.layout = VulkanPipelineLayout;
-    GraphicPipelineCreateInfo.renderPass = nullptr; // if we pass something, we dont use dynamic rendering and we have to use traditional renderpass rendering
-    GraphicPipelineCreateInfo.pNext = &PipelineRenderingCreateInfo; // Link the pipeline rendering info
-    GraphicPipelineCreateInfo.pDepthStencilState = &depthStencil;
-
-    VulkanGraphicsPipeline = vk::raii::Pipeline(VulkanInstanceWrapper->GetLogicalDevice(), nullptr, GraphicPipelineCreateInfo);
-}
-
 void Renderer::CreateCommandPool()
 {
     vk::CommandPoolCreateInfo poolInfo;
@@ -266,7 +146,7 @@ void Renderer::CreateCommandPool()
 
 void Renderer::CreateDepthResources()
 {
-    vk::Format depthFormat = findDepthFormat();
+    vk::Format depthFormat = PipelineManagerWrapper->findDepthFormat();
     CreateImage(SwapChainWrapper->GetExtent().width, SwapChainWrapper->GetExtent().height, depthFormat, vk::ImageTiling::eOptimal, vk::ImageUsageFlagBits::eDepthStencilAttachment, vk::MemoryPropertyFlagBits::eDeviceLocal, depthImage, depthImageMemory);
     depthImageView = SwapChainWrapper->CreateImageView(depthImage, depthFormat, vk::ImageAspectFlagBits::eDepth);
 }
@@ -313,7 +193,7 @@ void Renderer::CreateDescriptorPool()
 
 void Renderer::CreateDescriptorSets()
 {
-    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *VulkanDescriptorSetLayout);
+    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *PipelineManagerWrapper->GetDescriptorSetLayout());
     vk::DescriptorSetAllocateInfo allocInfo;
     allocInfo.descriptorPool = VulkanDescriptorPool;
     allocInfo.descriptorSetCount = static_cast<uint32_t>(layouts.size());
@@ -457,12 +337,12 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
     commandBuffer.beginRendering(renderingInfo);
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *VulkanGraphicsPipeline);
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *PipelineManagerWrapper->GetGraphicsPipeline());
     commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(SwapChainWrapper->GetExtent().width), static_cast<float>(SwapChainWrapper->GetExtent().height), 0.0f, 1.0f));
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), SwapChainWrapper->GetExtent()));
     commandBuffer.bindVertexBuffers(0, *VulkanVertexBuffer, { 0 });
     commandBuffer.bindIndexBuffer(*VulkanIndexBuffer, 0, vk::IndexType::eUint32);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, VulkanPipelineLayout, 0, *VulkanDescriptorSets[frameIndex], nullptr);
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *PipelineManagerWrapper->GetPipelineLayout(), 0, *VulkanDescriptorSets[frameIndex], nullptr);
     commandBuffer.drawIndexed(MeshData->GetIndexCount(), 1, 0, 0, 0);
     commandBuffer.endRendering();
     // After rendering, transition the swapchain image to PRESENT_SRC

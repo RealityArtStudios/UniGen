@@ -32,6 +32,7 @@ import vulkan_hpp;
 #include "Buffer.h"
 #include "TextureManager.h"
 #include "Mesh.h"
+#include "PipelineManager.h"
 
 
 class Window;
@@ -56,14 +57,7 @@ public:
 	Mesh& GetMesh() { return *MeshData; }
 	vk::raii::Buffer& GetVertexBuffer() { return VulkanVertexBuffer; }
 	vk::raii::Buffer& GetIndexBuffer() { return VulkanIndexBuffer; }
-
-	// Pipeline access
-	vk::raii::Pipeline& GetGraphicsPipeline() { return VulkanGraphicsPipeline; }
-	vk::raii::PipelineLayout& GetPipelineLayout() { return VulkanPipelineLayout; }
-	vk::raii::DescriptorSetLayout& GetDescriptorSetLayout() { return VulkanDescriptorSetLayout; }
 protected:
-	void CreateDescriptorSetLayout();
-	void CreateGraphicsPipeline();
 	void CreateCommandPool();
 	void CreateDepthResources();
 	void CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling,
@@ -95,29 +89,14 @@ protected:
 
 		throw std::runtime_error("failed to find supported format!");
 	}
-
-	vk::Format findDepthFormat() {
-		return findSupportedFormat(
-			{ vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint },
-			vk::ImageTiling::eOptimal,
-			vk::FormatFeatureFlagBits::eDepthStencilAttachment
-		);
-	}
-
-	bool hasStencilComponent(vk::Format format) {
-		return format == vk::Format::eD32SfloatS8Uint || format == vk::Format::eD24UnormS8Uint;
-	}
-
 protected:
 	//Vulkan
 	std::unique_ptr<VulkanInstance> VulkanInstanceWrapper;
 	std::unique_ptr<SwapChain> SwapChainWrapper;
 	std::unique_ptr<BufferManager> BufferManagerWrapper;
 	std::unique_ptr<TextureManager> TextureManagerWrapper;
+	std::unique_ptr<PipelineManager> PipelineManagerWrapper;
 	std::unique_ptr<Mesh> MeshData;
-	vk::raii::DescriptorSetLayout VulkanDescriptorSetLayout = nullptr;
-	vk::raii::PipelineLayout VulkanPipelineLayout = nullptr;
-	vk::raii::Pipeline       VulkanGraphicsPipeline = nullptr;
 	vk::raii::CommandPool VulkanCommandPool = nullptr;
 	std::vector < vk::raii::CommandBuffer>  VulkanCommandBuffers;
 	std::vector < vk::raii::Semaphore> VulkanPresentCompleteSemaphores;
