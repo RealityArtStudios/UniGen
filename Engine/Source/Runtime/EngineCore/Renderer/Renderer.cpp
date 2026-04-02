@@ -78,7 +78,8 @@ void Renderer::Render()
     // here and does not need to be caught by an exception.
     if (result == vk::Result::eErrorOutOfDateKHR)
     {
-        RecreateSwapChain();
+        SwapChainWrapper->Recreate();
+        CreateDepthResources();
         return;
     }
     // On other success codes than eSuccess and eSuboptimalKHR we just throw an exception.
@@ -121,7 +122,8 @@ void Renderer::Render()
     if ((result == vk::Result::eSuboptimalKHR) || (result == vk::Result::eErrorOutOfDateKHR) || RendererWindow->IsResized())
     {
         RendererWindow->SetResizedFalse();
-        RecreateSwapChain();
+        SwapChainWrapper->Recreate();
+        CreateDepthResources();
     }
     else
     {
@@ -836,15 +838,4 @@ void Renderer::transitionImageLayout(const vk::raii::Image& image, vk::ImageLayo
     commandBuffer.pipelineBarrier(sourceStage, destinationStage, {}, {}, nullptr, barrier);
 
     BufferManagerWrapper->endSingleTimeCommands(commandBuffer);
-}
-
-void Renderer::CleanupSwapChain()
-{
-    SwapChainWrapper->Cleanup();
-}
-
-void Renderer::RecreateSwapChain()
-{
-    SwapChainWrapper->Recreate();
-    CreateDepthResources();
 }

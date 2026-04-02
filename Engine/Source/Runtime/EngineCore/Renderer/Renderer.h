@@ -91,7 +91,6 @@ public:
 	void Render();
 	void Shutdown();
 	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
-	vk::raii::PhysicalDevice& GetPhysicalDevice() { return VulkanInstanceWrapper->GetPhysicalDevice(); }
 	vk::raii::CommandPool& GetCommandPool() { return VulkanCommandPool; }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
 	vk::raii::CommandBuffer& GetCurrentCommandBuffer() { return VulkanCommandBuffers[frameIndex]; }
@@ -108,7 +107,6 @@ public:
 	vk::raii::PipelineLayout& GetPipelineLayout() { return VulkanPipelineLayout; }
 	vk::raii::DescriptorSetLayout& GetDescriptorSetLayout() { return VulkanDescriptorSetLayout; }
 protected:
-	void RecreateSwapChain();
 	void CreateDescriptorSetLayout();
 	void CreateGraphicsPipeline();
 	void CreateCommandPool();
@@ -132,11 +130,7 @@ protected:
 		vk::AccessFlags2 src_access_mask, vk::AccessFlags2 dst_access_mask,
 		vk::PipelineStageFlags2 src_stage_mask, vk::PipelineStageFlags2 dst_stage_mask, vk::ImageAspectFlags    image_aspect_flags);
 	void transitionImageLayout(const vk::raii::Image& image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
-
-
-	//helpers function- vulkan
-	void CleanupSwapChain();
-
+	
 	//Texture
 
 	void copyBufferToImage(const vk::raii::Buffer& buffer, vk::raii::Image& image, uint32_t width, uint32_t height) {
