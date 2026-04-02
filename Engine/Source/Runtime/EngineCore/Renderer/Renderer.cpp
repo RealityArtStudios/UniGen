@@ -1,8 +1,5 @@
 // Copyright (c) CreationArtStudios, Khairol Anwar
 
-#define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-
 #include "Renderer.h"
 #include <chrono>
 
@@ -24,7 +21,7 @@ const std::vector<char const*> validationLayers = {
 constexpr int      MAX_FRAMES_IN_FLIGHT = 2;
 
 Renderer::Renderer(Window* InWindow)
-	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr), BufferManagerWrapper(nullptr), TextureManagerWrapper(nullptr)
+	: RendererWindow(InWindow), VulkanInstanceWrapper(std::make_unique<VulkanInstance>()), SwapChainWrapper(nullptr), BufferManagerWrapper(nullptr), TextureManagerWrapper(nullptr), MeshData(nullptr)
 {
 
 }
@@ -49,10 +46,11 @@ void Renderer::Initialize()
     CreateDepthResources();
     TextureManagerWrapper = std::make_unique<TextureManager>(VulkanInstanceWrapper.get(), SwapChainWrapper.get(), BufferManagerWrapper.get(), VulkanCommandPool);
     TextureManagerWrapper->Initialize(TEXTURE_PATH);
-    //LoadModel();
-    LoadModelWithGLTF();
-    BufferManagerWrapper->CreateVertexBuffer(vertices, VulkanVertexBuffer, VulkanVertexBufferMemory, VulkanCommandPool, VulkanInstanceWrapper->GetGraphicsQueue());
-    BufferManagerWrapper->CreateIndexBuffer(indices, VulkanIndexBuffer, VulkanIndexBufferMemory, VulkanCommandPool, VulkanInstanceWrapper->GetGraphicsQueue());
+    
+    MeshData = std::make_unique<Mesh>(MODEL_PATH);
+    
+    BufferManagerWrapper->CreateVertexBuffer(MeshData->GetVertices(), VulkanVertexBuffer, VulkanVertexBufferMemory, VulkanCommandPool, VulkanInstanceWrapper->GetGraphicsQueue());
+    BufferManagerWrapper->CreateIndexBuffer(MeshData->GetIndices(), VulkanIndexBuffer, VulkanIndexBufferMemory, VulkanCommandPool, VulkanInstanceWrapper->GetGraphicsQueue());
     BufferManagerWrapper->CreateUniformBuffers(MAX_FRAMES_IN_FLIGHT, VulkanUniformBuffers, VulkanUniformBuffersMemory, VulkanUniformBuffersMapped);
     CreateDescriptorPool();
     CreateDescriptorSets();
@@ -169,8 +167,8 @@ void Renderer::CreateGraphicsPipeline()
     vk::PipelineShaderStageCreateInfo ShaderStages[] = { VertShaderStageInfo, FragShaderStageInfo };
 
     // Graphic Pipeline
-    auto bindingDescription = Vertex::getBindingDescription();
-    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+    auto bindingDescription = Mesh::Vertex::GetBindingDescription();
+    auto attributeDescriptions = Mesh::Vertex::GetAttributeDescriptions();
 
     vk::PipelineVertexInputStateCreateInfo   vertexInputInfo;//<--- InputAssembly
     vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -298,178 +296,6 @@ void Renderer::CreateImage(uint32_t width, uint32_t height, vk::Format format, v
     image.bindMemory(imageMemory, 0);
 }
 
-void Renderer::LoadModel()
-{
-    /*tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-    std::string err;
-
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH.c_str())) {
-        throw std::runtime_error(err);
-    }
-
-    std::unordered_map<Vertex, uint32_t> uniqueVertices{};
-
-    for (const auto& shape : shapes)
-    {
-        for (const auto& index : shape.mesh.indices)
-        {
-            Vertex vertex{};
-
-            vertex.pos = {
-                 attrib.vertices[3 * index.vertex_index + 0],
-                attrib.vertices[3 * index.vertex_index + 1],
-                attrib.vertices[3 * index.vertex_index + 2]
-            };
-
-            vertex.texCoord = {
-                attrib.texcoords[2 * index.texcoord_index + 0],
-                1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-            };
-
-            vertex.color = { 1.0f, 1.0f, 1.0f };
-
-            if (!uniqueVertices.contains(vertex))
-            {
-                uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-                vertices.push_back(vertex);
-            }
-
-            indices.push_back(uniqueVertices[vertex]);
-        }
-    }*/
-
-
-}
-
-void Renderer::LoadModelWithGLTF() {
-    // Use tinygltf to load the model instead of tinyobjloader
-    tinygltf::Model    model;
-    tinygltf::TinyGLTF loader;
-    std::string        err;
-    std::string        warn;
-
-    bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, MODEL_PATH);
-
-    if (!warn.empty())
-    {
-        std::cout << "glTF warning: " << warn << std::endl;
-    }
-
-    if (!err.empty())
-    {
-        std::cout << "glTF error: " << err << std::endl;
-    }
-
-    if (!ret)
-    {
-        throw std::runtime_error("Failed to load glTF model");
-    }
-
-    vertices.clear();
-    indices.clear();
-
-    // Process all meshes in the model
-    for (const auto& mesh : model.meshes)
-    {
-        for (const auto& primitive : mesh.primitives)
-        {
-            // Get indices
-            const tinygltf::Accessor& indexAccessor = model.accessors[primitive.indices];
-            const tinygltf::BufferView& indexBufferView = model.bufferViews[indexAccessor.bufferView];
-            const tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
-
-            // Get vertex positions
-            const tinygltf::Accessor& posAccessor = model.accessors[primitive.attributes.at("POSITION")];
-            const tinygltf::BufferView& posBufferView = model.bufferViews[posAccessor.bufferView];
-            const tinygltf::Buffer& posBuffer = model.buffers[posBufferView.buffer];
-
-            // Get texture coordinates if available
-            bool                        hasTexCoords = primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end();
-            const tinygltf::Accessor* texCoordAccessor = nullptr;
-            const tinygltf::BufferView* texCoordBufferView = nullptr;
-            const tinygltf::Buffer* texCoordBuffer = nullptr;
-
-            if (hasTexCoords)
-            {
-                texCoordAccessor = &model.accessors[primitive.attributes.at("TEXCOORD_0")];
-                texCoordBufferView = &model.bufferViews[texCoordAccessor->bufferView];
-                texCoordBuffer = &model.buffers[texCoordBufferView->buffer];
-            }
-
-            uint32_t baseVertex = static_cast<uint32_t>(vertices.size());
-
-            for (size_t i = 0; i < posAccessor.count; i++)
-            {
-                Vertex vertex{};
-
-                const float* pos = reinterpret_cast<const float*>(&posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset + i * 12]);
-                // Convert from glTF Y-up to Vulkan Y-down (Z-up for Vulkan)
-                vertex.pos = { pos[0], -pos[2], pos[1] };
-
-                if (hasTexCoords)
-                {
-                    const float* texCoord = reinterpret_cast<const float*>(&texCoordBuffer->data[texCoordBufferView->byteOffset + texCoordAccessor->byteOffset + i * 8]);
-                    vertex.texCoord = { texCoord[0], texCoord[1] };
-                }
-                else
-                {
-                    vertex.texCoord = { 0.0f, 0.0f };
-                }
-
-                vertex.color = { 1.0f, 1.0f, 1.0f };
-
-                vertices.push_back(vertex);
-            }
-
-            const unsigned char* indexData = &indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset];
-            size_t               indexCount = indexAccessor.count;
-            size_t               indexStride = 0;
-
-            // Determine index stride based on component type
-            if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
-            {
-                indexStride = sizeof(uint16_t);
-            }
-            else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
-            {
-                indexStride = sizeof(uint32_t);
-            }
-            else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
-            {
-                indexStride = sizeof(uint8_t);
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported index component type");
-            }
-
-            indices.reserve(indices.size() + indexCount);
-
-            for (size_t i = 0; i < indexCount; i++)
-            {
-                uint32_t index = 0;
-
-                if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
-                {
-                    index = *reinterpret_cast<const uint16_t*>(indexData + i * indexStride);
-                }
-                else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
-                {
-                    index = *reinterpret_cast<const uint32_t*>(indexData + i * indexStride);
-                }
-                else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
-                {
-                    index = *reinterpret_cast<const uint8_t*>(indexData + i * indexStride);
-                }
-
-                indices.push_back(baseVertex + index);
-            }
-        }
-    }
-}
-
 void Renderer::CreateDescriptorPool()
 {
     std::array poolSize{
@@ -501,7 +327,7 @@ void Renderer::CreateDescriptorSets()
         vk::DescriptorBufferInfo bufferInfo;
         bufferInfo.buffer = VulkanUniformBuffers[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
+        bufferInfo.range = sizeof(Mesh::UniformBufferObject);
 
         vk::DescriptorImageInfo imageInfo;
         imageInfo.sampler = *TextureManagerWrapper->GetTextureSampler();
@@ -567,7 +393,7 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage)
     auto  currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float>(currentTime - startTime).count();
 
-    UniformBufferObject ubo{};
+    Mesh::UniformBufferObject ubo{};
     ubo.model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     ubo.view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(SwapChainWrapper->GetExtent().width) / static_cast<float>(SwapChainWrapper->GetExtent().height), 0.1f, 10.0f);
@@ -637,7 +463,7 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     commandBuffer.bindVertexBuffers(0, *VulkanVertexBuffer, { 0 });
     commandBuffer.bindIndexBuffer(*VulkanIndexBuffer, 0, vk::IndexType::eUint32);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, VulkanPipelineLayout, 0, *VulkanDescriptorSets[frameIndex], nullptr);
-    commandBuffer.drawIndexed(indices.size(), 1, 0, 0, 0);
+    commandBuffer.drawIndexed(MeshData->GetIndexCount(), 1, 0, 0, 0);
     commandBuffer.endRendering();
     // After rendering, transition the swapchain image to PRESENT_SRC
     transition_image_layout(

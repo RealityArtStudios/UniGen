@@ -61,7 +61,7 @@ void BufferManager::CopyBuffer(vk::raii::Buffer& srcBuffer, vk::raii::Buffer& ds
 	VulkanInstanceWrapper->GetGraphicsQueue().waitIdle();
 }
 
-void BufferManager::CreateVertexBuffer(const std::vector<Vertex>& vertices, vk::raii::Buffer& vertexBuffer, vk::raii::DeviceMemory& vertexBufferMemory, vk::raii::CommandPool& commandPool, vk::raii::Queue& graphicsQueue)
+void BufferManager::CreateVertexBuffer(const std::vector<Mesh::Vertex>& vertices, vk::raii::Buffer& vertexBuffer, vk::raii::DeviceMemory& vertexBufferMemory, vk::raii::CommandPool& commandPool, vk::raii::Queue& graphicsQueue)
 {
 	vk::DeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 

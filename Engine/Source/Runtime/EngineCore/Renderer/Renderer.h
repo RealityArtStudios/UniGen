@@ -17,7 +17,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/hash.hpp>
 
 #if defined(__INTELLISENSE__) || !defined(USE_CPP20_MODULES)
 #	include <vulkan/vulkan_raii.hpp>
@@ -28,56 +27,11 @@ import vulkan_hpp;
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-//#include <stb_image.h>
-
-//#include <tiny_obj_loader.h>
-
-
-#include <tiny_gltf.h>
-
-#include <ktx.h>
-
 #include "VulkanInstance/VulkanInstance.h"
 #include "SwapChain.h"
 #include "Buffer.h"
 #include "TextureManager.h"
-struct Vertex
-{
-	glm::vec3 pos;
-	glm::vec3 color;
-	glm::vec2 texCoord;
-
-	static vk::VertexInputBindingDescription getBindingDescription()
-	{
-		return { 0, sizeof(Vertex), vk::VertexInputRate::eVertex };
-	}
-
-	static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescriptions()
-	{
-		return {
-			vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos)),
-			vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color)),
-			vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texCoord)) };
-	}
-
-	bool operator==(const Vertex& other) const {
-		return pos == other.pos && color == other.color && texCoord == other.texCoord;
-	}
-};
-
-template <>
-struct std::hash<Vertex>
-{
-	size_t operator()(Vertex const& vertex) const noexcept
-	{
-		return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
-	}
-};
-struct UniformBufferObject {
-	alignas(16) glm::mat4 model;
-	alignas(16) glm::mat4 view;
-	alignas(16) glm::mat4 proj;
-};
+#include "Mesh.h"
 
 
 class Window;
@@ -97,9 +51,9 @@ public:
 	vk::raii::CommandBuffer& GetCurrentCommandBuffer() { return VulkanCommandBuffers[frameIndex]; }
 	vk::raii::DescriptorSet& GetCurrentDescriptorSet() { return VulkanDescriptorSets[frameIndex]; }
 
-	// Model data access
-	const std::vector<Vertex>& GetVertices() const { return vertices; }
-	const std::vector<uint32_t>& GetIndices() const { return indices; }
+	// Mesh data access
+	const Mesh& GetMesh() const { return *MeshData; }
+	Mesh& GetMesh() { return *MeshData; }
 	vk::raii::Buffer& GetVertexBuffer() { return VulkanVertexBuffer; }
 	vk::raii::Buffer& GetIndexBuffer() { return VulkanIndexBuffer; }
 
@@ -115,8 +69,6 @@ protected:
 	void CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling,
 		vk::ImageUsageFlags usage,
 		vk::MemoryPropertyFlags properties, vk::raii::Image& image, vk::raii::DeviceMemory& imageMemory);
-	void LoadModel();
-	void LoadModelWithGLTF();
 	void UpdateUniformBuffer(uint32_t currentImage);
 	void CreateDescriptorPool();
 	void CreateDescriptorSets();
@@ -162,6 +114,7 @@ protected:
 	std::unique_ptr<SwapChain> SwapChainWrapper;
 	std::unique_ptr<BufferManager> BufferManagerWrapper;
 	std::unique_ptr<TextureManager> TextureManagerWrapper;
+	std::unique_ptr<Mesh> MeshData;
 	vk::raii::DescriptorSetLayout VulkanDescriptorSetLayout = nullptr;
 	vk::raii::PipelineLayout VulkanPipelineLayout = nullptr;
 	vk::raii::Pipeline       VulkanGraphicsPipeline = nullptr;
@@ -189,10 +142,6 @@ protected:
 	vk::raii::Image depthImage = nullptr;
 	vk::raii::DeviceMemory depthImageMemory = nullptr;
 	vk::raii::ImageView depthImageView = nullptr;
-
-	//Model
-	std::vector<Vertex> vertices;
-	std::vector<uint32_t> indices;
 private:
 
 	Window* RendererWindow = nullptr;
