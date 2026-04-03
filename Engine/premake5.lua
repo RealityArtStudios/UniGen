@@ -27,7 +27,8 @@ includedirs
 		"%{IncludeDir.stb}",
 "%{IncludeDir.tinyobjloader}",
 "%{IncludeDir.tinygltf}",
-"%{IncludeDir.KTX}"
+		"%{IncludeDir.KTX}",
+		"ThirdParty/yaml-cpp/include"
 	}
 	
 	links
@@ -37,10 +38,22 @@ includedirs
 		"vulkan-1"
 	}
 
-	-- Add Vulkan library directory
+	-- Link to yaml-cpp library
 	filter {"system:windows", "configurations:*"}
+		defines { "YAML_CPP_STATIC_DEFINE" }
+
+	-- Add library directories
+	filter "configurations:Debug"
 		libdirs 
 		{
+			"ThirdParty/yaml-cpp/Binaries/Debug/windows/x86_64/yaml-cpp",
+			"%{VulkanSDK.LibraryDir}"
+		}
+
+	filter "configurations:Release"
+		libdirs 
+		{
+			"ThirdParty/yaml-cpp/Binaries/Release/windows/x86_64/yaml-cpp",
 			"%{VulkanSDK.LibraryDir}"
 		}
 	

@@ -1,6 +1,6 @@
 workspace "UniGen"
 	architecture "x86_64"
-	startproject "Game"
+	startproject "Editor"
 
 	configurations
 	{
@@ -26,6 +26,7 @@ IncludeDir["stb"] = "%{wks.location}/Engine/ThirdParty/stb"
 IncludeDir["tinyobjloader"] = "%{wks.location}/Engine/ThirdParty/tinyobjloader"
 IncludeDir["tinygltf"] = "%{wks.location}/Engine/ThirdParty/tinygltf"
 IncludeDir["KTX"] = "%{wks.location}/Engine/ThirdParty/KTX/include"
+IncludeDir["yaml_cpp"] = "%{wks.location}/Engine/ThirdParty/yaml-cpp/include"
 
 VulkanSDK = {}
 VulkanSDK.LibraryDir = "C:/VulkanSDK/1.4.335.0/Lib"
@@ -45,4 +46,8 @@ group ""
 
 group "ThirdParty"
 include "Engine/ThirdParty"
+group ""
+
+group "Editor"
+include "Editor"
 group ""

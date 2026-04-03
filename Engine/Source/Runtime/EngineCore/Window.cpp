@@ -198,3 +198,9 @@ void Window::pollEvents()
 {
     glfwPollEvents();
 }
+
+void Window::SetTitle(const char* title)
+{
+    m_Title = title;
+    glfwSetWindowTitle(m_Window, title);
+}

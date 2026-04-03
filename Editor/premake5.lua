@@ -1,4 +1,4 @@
-project "Game"
+project "Editor"
 	kind "ConsoleApp"
 	language "C++"
 	cppdialect "C++23"
@@ -12,17 +12,14 @@ project "Game"
 		"Source/**.cpp"
 	}
 
-	-- Exclude Launch.cpp from Game build since we use main directly
-	removefiles { "Source/Runtime/EngineCore/Launch.cpp" }
-
 	includedirs
 	{
 		"Source",
 		"../Engine/Source",
-		"../Engine/ThirdParty/ImGui",
-		"../Engine/ThirdParty/ImGui/backends",
 		"../Engine/ThirdParty/GLFW",
 		"../Engine/ThirdParty/GLFW/include",
+		"../Engine/ThirdParty/ImGui",
+		"../Engine/ThirdParty/ImGui/backends",
 		"%{IncludeDir.VulkanSDK}",
 		"%{IncludeDir.GLM}",
 		"%{IncludeDir.stb}",
@@ -35,7 +32,8 @@ project "Game"
 	links
 	{
 		"UniGen",
-		"ImGui"
+		"ImGui",
+		"yaml-cpp"
 	}
 
 	-- Link to yaml-cpp library

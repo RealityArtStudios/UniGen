@@ -65,5 +65,12 @@ Dependency(
         url="https://github.com/syoyo/tinygltf/archive/refs/tags/v2.9.7.zip",
         install_path=f"{THIRD_PARTY_DIR}/tinygltf",
         extracted_folder="tinygltf"
+    ),
+Dependency(
+        name="yaml-cpp",
+        version="0.9.0",
+        url="https://github.com/jbeder/yaml-cpp/archive/refs/tags/yaml-cpp-0.9.0.zip",
+        install_path=f"{THIRD_PARTY_DIR}/yaml-cpp",
+        extracted_folder="yaml-cpp"
     )
 ]

@@ -46,8 +46,10 @@ public:
      void SetResizedFalse() { m_IsResized = false; }
      bool isFramebufferResized() { return m_IsResized; }
      void resetFramebufferResized() { m_IsResized = false; }
-     void getFramebufferSize(int* width, int* height) { *width = m_Width; *height = m_Height; }
-     void pollEvents();
+    void getFramebufferSize(int* width, int* height) { *width = m_Width; *height = m_Height; }
+    void pollEvents();
+    void SetTitle(const char* title);
+    void* GetNativeWindow() const { return (void*)m_Window; }
     /// Tells if a particular key on the keyboard was pressed or not.
     bool isKeyPressed(unsigned int keycode);
     /// Tells if a particular key on the keyboard was released or not.

@@ -44,6 +44,7 @@ Engine/ThirdParty/stb/
 Engine/ThirdParty/tinyobjloader/
 Engine/ThirdParty/tinygltf/
 Engine/ThirdParty/KTX/
+Engine/ThirdParty/yaml-cpp
 
 
 # -----------------------------------------------------------------------------

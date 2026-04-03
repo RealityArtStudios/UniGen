@@ -1,0 +1,4 @@
+Project:
+  Name: EOC
+  StartScene: "Content/Scenes/Main.ungscene"
+  AssetDirectory: "Content"
