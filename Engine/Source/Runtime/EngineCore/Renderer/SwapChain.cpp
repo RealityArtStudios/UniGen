@@ -61,7 +61,7 @@ void SwapChain::CreateSwapChain()
 	swapChainCreateInfo.imageColorSpace = VulkanSwapChainSurfaceFormat.colorSpace;
 	swapChainCreateInfo.imageExtent = VulkanSwapChainExtent;
 	swapChainCreateInfo.imageArrayLayers = 1;
-	swapChainCreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+	swapChainCreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled;
 	swapChainCreateInfo.imageSharingMode = vk::SharingMode::eExclusive;
 	swapChainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
 	swapChainCreateInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;

@@ -3,6 +3,7 @@
 #pragma once
 #include <memory>
 #include <vector>
+#include <vulkan/vulkan.h>
 #include <vulkan/vulkan_raii.hpp>
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -27,9 +28,15 @@ public:
 	bool WantCaptureKeyboard() const;
 	bool WantCaptureMouse() const;
 
+	void SetupViewportDescriptor(VkDescriptorSet descriptor);
+	void CleanupViewport();
+
 private:
 	ImGuiContext* context = nullptr;
 	Renderer* renderer = nullptr;
 	vk::raii::DescriptorPool descriptorPool = nullptr;
 	bool initialized = false;
+
+	std::vector<VkDescriptorSet> viewportDescriptors;
+	vk::raii::Sampler viewportSampler = nullptr;
 };

@@ -51,6 +51,7 @@ public:
 	void Render();
 	void Shutdown();
 	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
+	SwapChain* GetSwapChain() const { return SwapChainWrapper.get(); }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
 	ImGuiSystem* GetImGuiSystem() const { return ImGuiSystemWrapper.get(); }
 
@@ -59,6 +60,9 @@ public:
 	Mesh& GetMesh() { return *MeshData; }
 	vk::raii::Buffer& GetVertexBuffer() { return VulkanVertexBuffer; }
 	vk::raii::Buffer& GetIndexBuffer() { return VulkanIndexBuffer; }
+
+	vk::raii::ImageView& GetRenderTargetImageView() { return renderTargetImageView; }
+	vk::raii::Sampler& GetRenderTargetSampler() { return renderTargetSampler; }
 protected:
 	void CreateDepthResources();
 	void CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling,
@@ -67,6 +71,7 @@ protected:
 	void UpdateUniformBuffer(uint32_t currentImage);
 	void CreateSyncObjects();
 	void recordCommandBuffer(uint32_t imageIndex);
+	void CreateRenderTarget();
 	void transition_image_layout(vk::Image               image, vk::ImageLayout old_layout, vk::ImageLayout new_layout,
 		vk::AccessFlags2 src_access_mask, vk::AccessFlags2 dst_access_mask,
 		vk::PipelineStageFlags2 src_stage_mask, vk::PipelineStageFlags2 dst_stage_mask, vk::ImageAspectFlags    image_aspect_flags);
@@ -114,8 +119,13 @@ protected:
 		vk::KHRSynchronization2ExtensionName };
 
 	vk::raii::Image depthImage = nullptr;
-	vk::raii::DeviceMemory depthImageMemory = nullptr;
+	vk::raii::DeviceMemory depthImageImageMemory = nullptr;
 	vk::raii::ImageView depthImageView = nullptr;
+
+	vk::raii::Image renderTargetImage = nullptr;
+	vk::raii::DeviceMemory renderTargetImageMemory = nullptr;
+	vk::raii::ImageView renderTargetImageView = nullptr;
+	vk::raii::Sampler renderTargetSampler = nullptr;
 private:
 
 	Window* RendererWindow = nullptr;
