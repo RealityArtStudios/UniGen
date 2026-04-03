@@ -52,13 +52,6 @@ DEPENDENCIES: list[Dependency] = [
         install_path=f"{THIRD_PARTY_DIR}/GLM",
         extracted_folder="GLM"
     ),
-Dependency(
-        name="VulkanMemoryAllocator",
-        version="3.3.0",
-        url="https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/archive/refs/tags/v3.3.0.zip",
-        install_path=f"{THIRD_PARTY_DIR}/VulkanMemoryAllocator",
-        extracted_folder="VulkanMemoryAllocator"
-    ),
     Dependency(
         name="stb",
         version="master",
@@ -67,24 +60,10 @@ Dependency(
         extracted_folder="stb-master"
     ),
 Dependency(
-        name="tinyobjloader",
-        version="1.0.6",
-        url="https://github.com/tinyobjloader/tinyobjloader/archive/refs/tags/v1.0.6.zip",
-        install_path=f"{THIRD_PARTY_DIR}/tinyobjloader",
-        extracted_folder="tinyobjloader"
-    ),
-Dependency(
         name="tinygltf",
         version="2.9.7",
         url="https://github.com/syoyo/tinygltf/archive/refs/tags/v2.9.7.zip",
         install_path=f"{THIRD_PARTY_DIR}/tinygltf",
         extracted_folder="tinygltf"
-    ),
-Dependency(
-        name="KTX",
-        version="4.4.2",
-        url="https://github.com/KhronosGroup/KTX-Software/archive/refs/tags/v4.4.2.zip",
-        install_path=f"{THIRD_PARTY_DIR}/KTX",
-        extracted_folder="KTX"
     )
 ]
