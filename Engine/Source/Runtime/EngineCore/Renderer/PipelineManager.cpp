@@ -23,7 +23,7 @@ void PipelineManager::CreateDescriptorSetLayout()
 		vk::DescriptorSetLayoutBinding(1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment, nullptr)
 	};
 
-	vk::DescriptorSetLayoutCreateInfo layoutInfo({}, bindings.size(), bindings.data());
+	vk::DescriptorSetLayoutCreateInfo layoutInfo({}, static_cast<uint32_t>(bindings.size()), bindings.data());
 
 	VulkanDescriptorSetLayout = vk::raii::DescriptorSetLayout(VulkanInstanceWrapper->GetLogicalDevice(), layoutInfo);
 }

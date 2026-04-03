@@ -22,8 +22,8 @@ Window::Window(const char *title, int width, int height) : backgroundColor(glm::
     }
 
     firstMouse = true;
-    lastMouseX = width / 2;
-    lastMouseY = height / 2;
+    lastMouseX = static_cast<float>(width) / 2.0f;
+    lastMouseY = static_cast<float>(height) / 2.0f;
 }
 
 Window::~Window()
@@ -183,15 +183,15 @@ void mouse_position_callback(GLFWwindow* window, double xpos, double ypos)
 
     if (wind->firstMouse)
     {
-        wind->lastMouseX = xpos;
-        wind->lastMouseY = ypos;
+        wind->lastMouseX = static_cast<float>(xpos);
+        wind->lastMouseY = static_cast<float>(ypos);
         wind->firstMouse = false;
     }
-    wind->deltaMouseX = xpos - wind->lastMouseX;
-    wind->deltaMouseY = wind->lastMouseY - ypos;
+    wind->deltaMouseX = static_cast<float>(xpos) - wind->lastMouseX;
+    wind->deltaMouseY = wind->lastMouseY - static_cast<float>(ypos);
 
-    wind->lastMouseX = xpos;
-    wind->lastMouseY = ypos;
+    wind->lastMouseX = static_cast<float>(xpos);
+    wind->lastMouseY = static_cast<float>(ypos);
 }
 
 void Window::pollEvents()
