@@ -48,6 +48,7 @@ void GameEngine::Shutdown()
 
 void GameEngine::Cleanup()
 {
+    m_Renderer->GetImGuiSystem()->Cleanup();
     m_Renderer->Shutdown();
     delete m_Window;
     m_Window = nullptr;
