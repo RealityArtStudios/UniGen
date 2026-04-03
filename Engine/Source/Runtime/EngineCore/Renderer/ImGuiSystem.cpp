@@ -3,6 +3,7 @@
 #include "ImGuiSystem.h"
 #include "Renderer.h"
 #include "../Window.h"
+#include "SwapChain.h"
 #include <iostream>
 
 ImGuiSystem::ImGuiSystem()
@@ -46,11 +47,18 @@ bool ImGuiSystem::Initialize(Renderer* renderer, Window* window)
 	init_info.UseDynamicRendering = true;
 	init_info.PipelineInfoMain.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
 	init_info.PipelineInfoMain.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-	// Use swapchain's format - it's already initialized by this point via SwapChain wrapper
-	vk::Format swapchainFormat = renderer->GetVulkanInstance()->GetPhysicalDevice().getSurfaceFormatsKHR(*renderer->GetVulkanInstance()->GetSurface())[0].format;
-	VkFormat colorFormat = static_cast<VkFormat>(swapchainFormat);
+	// Use swapchain's format - must match what swapchain actually uses (SRGB per SwapChain.cpp)
+	// surface query returns 44 (UNORM) but actual swapchain uses 50 (SRGB)
+	VkFormat colorFormat = VK_FORMAT_B8G8R8A8_SRGB;
 	init_info.PipelineInfoMain.PipelineRenderingCreateInfo.pColorAttachmentFormats = &colorFormat;
 	init_info.PipelineInfoMain.PipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+	
+	// Tell ImGui to create its main pipeline after initialization so formats match
+	init_info.CheckVkResultFn = [](VkResult err) {
+		if (err != VK_SUCCESS) {
+			std::cerr << "[ImGui Vulkan] Error: " << err << std::endl;
+		}
+	};
 
 	if (!ImGui_ImplVulkan_Init(&init_info)) {
 		std::cerr << "Failed to initialize ImGui Vulkan backend" << std::endl;

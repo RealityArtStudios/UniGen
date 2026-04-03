@@ -272,12 +272,13 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     commandBuffer.bindIndexBuffer(*VulkanIndexBuffer, 0, vk::IndexType::eUint32);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *PipelineManagerWrapper->GetPipelineLayout(), 0, *DescriptorManagerWrapper->GetCurrentDescriptorSet(frameIndex), nullptr);
     commandBuffer.drawIndexed(MeshData->GetIndexCount(), 1, 0, 0, 0);
-    commandBuffer.endRendering();
     
     if (ImGuiSystemWrapper) {
         ImGuiSystemWrapper->NewFrame();
         ImGuiSystemWrapper->Render(commandBuffer, frameIndex);
     }
+    
+    commandBuffer.endRendering();
     
     // After rendering, transition the swapchain image to PRESENT_SRC
     transition_image_layout(
