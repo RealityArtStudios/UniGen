@@ -154,10 +154,72 @@ void ImGuiSystem::NewFrame()
 	}
 	ImGui::End();
 
+	// Scene Hierarchy panel
+	ImGui::SetNextWindowDockID(dockId, ImGuiCond_FirstUseEver);
+	ImGui::Begin("Scene Hierarchy");
+	ImGui::Text("No objects in scene");
+	ImGui::End();
+
+	// Properties panel
+	ImGui::SetNextWindowDockID(dockId, ImGuiCond_FirstUseEver);
+	ImGui::Begin("Properties");
+	ImGui::Text("No selection");
+	ImGui::End();
+
+	// Console panel
+	ImGui::SetNextWindowDockID(dockId, ImGuiCond_FirstUseEver);
+	ImGui::Begin("Console");
+	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Engine initialized...");
+	ImGui::End();
+
+	// Resources panel
+	ImGui::SetNextWindowDockID(dockId, ImGuiCond_FirstUseEver);
+	ImGui::Begin("Resources");
+	ImGui::Text("No resources loaded");
+	ImGui::End();
+
 	// Menu bar
 	if (ImGui::BeginMainMenuBar()) {
 		if (ImGui::BeginMenu("File")) {
-			if (ImGui::MenuItem("Exit")) {}
+			if (ImGui::MenuItem("New Scene", "Ctrl+N")) {}
+			if (ImGui::MenuItem("Open Scene", "Ctrl+O")) {}
+			if (ImGui::MenuItem("Save Scene", "Ctrl+S")) {}
+			if (ImGui::MenuItem("Save Scene As...", "Ctrl+Shift+S")) {}
+			ImGui::Separator();
+			if (ImGui::MenuItem("Exit", "Alt+F4")) {}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Edit")) {
+			if (ImGui::MenuItem("Undo", "Ctrl+Z")) {}
+			if (ImGui::MenuItem("Redo", "Ctrl+Y")) {}
+			ImGui::Separator();
+			if (ImGui::MenuItem("Cut", "Ctrl+X")) {}
+			if (ImGui::MenuItem("Copy", "Ctrl+C")) {}
+			if (ImGui::MenuItem("Paste", "Ctrl+V")) {}
+			if (ImGui::MenuItem("Delete", "Del")) {}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("View")) {
+			if (ImGui::MenuItem("Viewport", "Ctrl+1")) {}
+			if (ImGui::MenuItem("Scene Hierarchy", "Ctrl+2")) {}
+			if (ImGui::MenuItem("Properties", "Ctrl+3")) {}
+			if (ImGui::MenuItem("Console", "Ctrl+4")) {}
+			if (ImGui::MenuItem("Resources", "Ctrl+5")) {}
+			ImGui::Separator();
+			if (ImGui::MenuItem("Toggle Fullscreen", "F11")) {}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Game")) {
+			if (ImGui::MenuItem("Play", "F5")) {}
+			if (ImGui::MenuItem("Pause", "F6")) {}
+			if (ImGui::MenuItem("Stop", "F7")) {}
+			ImGui::Separator();
+			if (ImGui::MenuItem("Simulate", "F8")) {}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Help")) {
+			if (ImGui::MenuItem("Documentation")) {}
+			if (ImGui::MenuItem("About")) {}
 			ImGui::EndMenu();
 		}
 		ImGui::EndMainMenuBar();
