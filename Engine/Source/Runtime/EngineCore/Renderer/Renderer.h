@@ -36,6 +36,7 @@ import vulkan_hpp;
 #include "CommandPool.h"
 #include "CommandBufferManager.h"
 #include "DescriptorManager.h"
+#include "ImGuiSystem.h"
 
 
 class Window;
@@ -51,6 +52,7 @@ public:
 	void Shutdown();
 	VulkanInstance* GetVulkanInstance() const { return VulkanInstanceWrapper.get(); }
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
+	ImGuiSystem* GetImGuiSystem() const { return ImGuiSystemWrapper.get(); }
 
 	// Mesh data access
 	const Mesh& GetMesh() const { return *MeshData; }
@@ -95,6 +97,7 @@ protected:
 	std::unique_ptr<BufferManager> BufferManagerWrapper;
 	std::unique_ptr<TextureManager> TextureManagerWrapper;
 	std::unique_ptr<PipelineManager> PipelineManagerWrapper;
+	std::unique_ptr<ImGuiSystem> ImGuiSystemWrapper;
 	std::unique_ptr<Mesh> MeshData;
 	std::vector < vk::raii::Semaphore> VulkanPresentCompleteSemaphores;
 	std::vector < vk::raii::Semaphore> VulkanRenderFinishedSemaphores;

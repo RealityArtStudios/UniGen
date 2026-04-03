@@ -33,7 +33,6 @@ project "ImGui"
 
 	defines
 	{
-		"IMGUI_IMPL_VULKAN_NO_PROTOTYPES"
 	}
 
 	filter "system:windows"

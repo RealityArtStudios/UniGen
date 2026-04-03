@@ -63,6 +63,9 @@ void Renderer::Initialize()
     DescriptorManagerWrapper->CreateDescriptorSets(PipelineManagerWrapper.get(), TextureManagerWrapper.get(), MeshData.get());
     CommandBufferManagerWrapper = std::make_unique<CommandBufferManager>(VulkanInstanceWrapper.get(), CommandPoolWrapper.get(), MAX_FRAMES_IN_FLIGHT);
     CreateSyncObjects();
+    
+    ImGuiSystemWrapper = std::make_unique<ImGuiSystem>();
+    ImGuiSystemWrapper->Initialize(this, RendererWindow);
 }
 
 void Renderer::Render()
@@ -270,6 +273,12 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *PipelineManagerWrapper->GetPipelineLayout(), 0, *DescriptorManagerWrapper->GetCurrentDescriptorSet(frameIndex), nullptr);
     commandBuffer.drawIndexed(MeshData->GetIndexCount(), 1, 0, 0, 0);
     commandBuffer.endRendering();
+    
+    if (ImGuiSystemWrapper) {
+        ImGuiSystemWrapper->NewFrame();
+        ImGuiSystemWrapper->Render(commandBuffer, frameIndex);
+    }
+    
     // After rendering, transition the swapchain image to PRESENT_SRC
     transition_image_layout(
         SwapChainWrapper->GetImages()[imageIndex],
