@@ -8,6 +8,11 @@
 #include "Runtime/EngineCore/Shader/Shader.h"
 #include "TextureManager.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <psapi.h>
+#endif
+
 
 //TODO: Will move to vulkan specific RHI types
 const std::vector<char const*> validationLayers = {
@@ -57,6 +62,7 @@ void Renderer::Initialize()
     DescriptorManagerWrapper->CreateDescriptorPool();
     CommandBufferManagerWrapper = std::make_unique<CommandBufferManager>(VulkanInstanceWrapper.get(), CommandPoolWrapper.get(), MAX_FRAMES_IN_FLIGHT);
     CreateSyncObjects();
+    CreateTimestampQueryPool();
     
     ImGuiSystemWrapper = std::make_unique<ImGuiSystem>();
     ImGuiSystemWrapper->Initialize(this, RendererWindow);
@@ -110,15 +116,36 @@ void Renderer::ReloadSceneData()
 
 void Renderer::Render()
 {
+    static auto frameStartTime = std::chrono::high_resolution_clock::now();
+    
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(currentTime - frameStartTime);
+    float frameTimeMs = static_cast<float>(duration.count()) / 1000.0f;
+    frameStartTime = currentTime;
+    
+    float fps = (frameTimeMs > 0.0f) ? 1000.0f / frameTimeMs : 0.0f;
+    frameStats.frameTimeMs.store(frameTimeMs);
+    frameStats.fps.store(fps);
+    
     // Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
             //       while renderFinishedSemaphores is indexed by imageIndex
+    
+    // CPU: Wait for previous frame GPU completion
+    auto waitStart = std::chrono::high_resolution_clock::now();
     auto fenceResult = VulkanInstanceWrapper->GetLogicalDevice().waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
+    auto waitEnd = std::chrono::high_resolution_clock::now();
+    frameStats.cpuWaitGpuMs.store(static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(waitEnd - waitStart).count()) / 1000.0f);
+    
     if (fenceResult != vk::Result::eSuccess)
     {
         throw std::runtime_error("failed to wait for fence!");
     }
 
+    // CPU: Acquire next image from swapchain
+    auto acquireStart = std::chrono::high_resolution_clock::now();
     auto [result, imageIndex] = SwapChainWrapper->GetSwapChain().acquireNextImage(UINT64_MAX, *VulkanPresentCompleteSemaphores[frameIndex], nullptr);
+    auto acquireEnd = std::chrono::high_resolution_clock::now();
+    frameStats.cpuAcquireMs.store(static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(acquireEnd - acquireStart).count()) / 1000.0f);
 
     // Due to VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS being defined, eErrorOutOfDateKHR can be checked as a result
     // here and does not need to be caught by an exception.
@@ -152,7 +179,12 @@ void Renderer::Render()
     VulkanInstanceWrapper->GetLogicalDevice().resetFences(*inFlightFences[frameIndex]);
 
     CommandBufferManagerWrapper->GetCurrentCommandBuffer(frameIndex).reset();
+    
+    // CPU: Record command buffer
+    auto recordStart = std::chrono::high_resolution_clock::now();
     recordCommandBuffer(imageIndex);
+    auto recordEnd = std::chrono::high_resolution_clock::now();
+    frameStats.cpuRecordMs.store(static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(recordEnd - recordStart).count()) / 1000.0f);
 
     vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
     vk::SubmitInfo   submitInfo;
@@ -164,7 +196,11 @@ void Renderer::Render()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &*VulkanRenderFinishedSemaphores[imageIndex];
 
+    // CPU: Submit to GPU
+    auto submitStart = std::chrono::high_resolution_clock::now();
     VulkanInstanceWrapper->GetGraphicsQueue().submit(submitInfo, *inFlightFences[frameIndex]);
+    auto submitEnd = std::chrono::high_resolution_clock::now();
+    frameStats.cpuSubmitMs.store(static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(submitEnd - submitStart).count()) / 1000.0f);
 
     vk::PresentInfoKHR presentInfoKHR;
     presentInfoKHR.waitSemaphoreCount = 1;
@@ -173,7 +209,11 @@ void Renderer::Render()
     presentInfoKHR.pSwapchains = &*SwapChainWrapper->GetSwapChain();
     presentInfoKHR.pImageIndices = &imageIndex;
 
+    // CPU: Present
+    auto presentStart = std::chrono::high_resolution_clock::now();
     result = VulkanInstanceWrapper->GetGraphicsQueue().presentKHR(presentInfoKHR);
+    auto presentEnd = std::chrono::high_resolution_clock::now();
+    frameStats.cpuPresentMs.store(static_cast<float>(std::chrono::duration_cast<std::chrono::microseconds>(presentEnd - presentStart).count()) / 1000.0f);
     // Due to VULKAN_HPP_HANDLE_ERROR_OUT_OF_DATE_AS_SUCCESS being defined, eErrorOutOfDateKHR can be checked as a result
     // here and does not need to be caught by an exception.
     if ((result == vk::Result::eSuboptimalKHR) || (result == vk::Result::eErrorOutOfDateKHR) || RendererWindow->IsResized())
@@ -204,6 +244,9 @@ void Renderer::Render()
         // There are no other success codes than eSuccess; on any error code, presentKHR already threw an exception.
         assert(result == vk::Result::eSuccess);
     }
+    
+    CalculateFrameStats();
+    
     frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
@@ -338,6 +381,9 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     auto& commandBuffer = CommandBufferManagerWrapper->GetCurrentCommandBuffer(frameIndex);
     commandBuffer.begin({});
     
+    commandBuffer.resetQueryPool(*renderTimestampQueryPool, 0, 2);
+    commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eTopOfPipe, *renderTimestampQueryPool, 0);
+    
     // Transition render target to color attachment for rendering
     if (renderTargetImage != nullptr) {
         transition_image_layout(
@@ -468,6 +514,8 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
         vk::PipelineStageFlagBits2::eBottomOfPipe,
         vk::ImageAspectFlagBits::eColor);
     
+    commandBuffer.writeTimestamp(vk::PipelineStageFlagBits::eBottomOfPipe, *renderTimestampQueryPool, 1);
+    
     commandBuffer.end();
 }
 
@@ -504,4 +552,53 @@ void Renderer::transition_image_layout(
     dependency_info.pImageMemoryBarriers = &barrier;
 
     CommandBufferManagerWrapper->GetCurrentCommandBuffer(frameIndex).pipelineBarrier2(dependency_info);
+}
+
+void Renderer::CreateTimestampQueryPool()
+{
+    vk::QueryPoolCreateInfo queryPoolInfo;
+    queryPoolInfo.queryType = vk::QueryType::eTimestamp;
+    queryPoolInfo.queryCount = 2;
+    
+    renderTimestampQueryPool = vk::raii::QueryPool(VulkanInstanceWrapper->GetLogicalDevice(), queryPoolInfo);
+}
+
+void Renderer::CalculateFrameStats()
+{
+    auto timestampPeriod = VulkanInstanceWrapper->GetPhysicalDevice().getProperties().limits.timestampPeriod;
+    
+    vkGetQueryPoolResults(
+        *VulkanInstanceWrapper->GetLogicalDevice(),
+        *renderTimestampQueryPool,
+        0,
+        2,
+        sizeof(uint64_t) * 2,
+        timestampResults.data(),
+        sizeof(uint64_t),
+        VK_QUERY_RESULT_WAIT_BIT
+    );
+    
+    float gpuTimeMs = static_cast<float>(timestampResults[1] - timestampResults[0]) * timestampPeriod / 1'000'000.0f;
+    frameStats.gpuTimeMs.store(gpuTimeMs);
+    
+    frameStats.frameCount.fetch_add(1);
+}
+
+void Renderer::UpdateMemoryStats()
+{
+    auto props = VulkanInstanceWrapper->GetPhysicalDevice().getProperties();
+    uint64_t totalGpuMem = props.limits.maxMemoryAllocationCount;
+    
+    frameStats.gpuMemoryBudget.store(totalGpuMem * 1024);
+    frameStats.gpuMemoryUsed.store(0);
+    
+#ifdef _WIN32
+    MEMORYSTATUSEX memStatus;
+    memStatus.dwLength = sizeof(memStatus);
+    if (GlobalMemoryStatusEx(&memStatus)) {
+        uint64_t totalSys = memStatus.ullTotalPhys;
+        uint64_t availSys = memStatus.ullAvailPhys;
+        frameStats.systemMemoryUsed.store(totalSys - availSys);
+    }
+#endif
 }

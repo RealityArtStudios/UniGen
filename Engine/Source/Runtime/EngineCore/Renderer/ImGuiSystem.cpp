@@ -7,6 +7,7 @@
 
 #include "../../../../Editor/Source/Panels/ContentBrowserPanel.h"
 #include "../../../../Editor/Source/Panels/SceneHierarchyPanel.h"
+#include "../../../../Editor/Source/Panels/PerformancePanel.h"
 
 #include <iostream>
 
@@ -141,6 +142,11 @@ void ImGuiSystem::SetSceneHierarchy(std::unique_ptr<SceneHierarchyPanel> panel)
 	sceneHierarchyPanel = std::move(panel);
 }
 
+void ImGuiSystem::SetPerformancePanel(std::unique_ptr<PerformancePanel> panel)
+{
+	performancePanel = std::move(panel);
+}
+
 void ImGuiSystem::NewFrame()
 {
 	if (!initialized) {
@@ -272,6 +278,11 @@ void ImGuiSystem::NewFrame()
 	// Scene Hierarchy panel
 	if (sceneHierarchyPanel) {
 		sceneHierarchyPanel->OnImGuiRender();
+	}
+
+	// Performance panel
+	if (performancePanel) {
+		performancePanel->OnImGuiRender();
 	}
 }
 

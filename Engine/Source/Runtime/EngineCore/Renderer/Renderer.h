@@ -50,7 +50,52 @@ import vulkan_hpp;
 #include "Runtime/EngineCore/ECS/Components.h"
 #include "Runtime/EngineCore/ECS/Scene.h"
 
+#include <atomic>
+#include <array>
+
 class Window;
+
+struct FrameStats
+{
+	std::atomic<float> frameTimeMs = 0.0f;
+	std::atomic<float> fps = 0.0f;
+	std::atomic<float> gpuTimeMs = 0.0f;
+	std::atomic<uint64_t> frameCount = 0;
+
+	std::atomic<float> cpuWaitGpuMs = 0.0f;
+	std::atomic<float> cpuAcquireMs = 0.0f;
+	std::atomic<float> cpuRecordMs = 0.0f;
+	std::atomic<float> cpuSubmitMs = 0.0f;
+	std::atomic<float> cpuPresentMs = 0.0f;
+
+	std::atomic<float> gameThreadMs = 0.0f;
+	std::atomic<float> renderThreadMs = 0.0f;
+
+	std::atomic<uint64_t> gpuMemoryUsed = 0;
+	std::atomic<uint64_t> gpuMemoryBudget = 0;
+	std::atomic<uint64_t> systemMemoryUsed = 0;
+
+	float GetFrameTime() const { return frameTimeMs.load(); }
+	float GetFPS() const { return fps.load(); }
+	float GetGPUTime() const { return gpuTimeMs.load(); }
+	uint64_t GetFrameCount() const { return frameCount.load(); }
+
+	float GetCPUWaitGpu() const { return cpuWaitGpuMs.load(); }
+	float GetCPUAcquire() const { return cpuAcquireMs.load(); }
+	float GetCPURecord() const { return cpuRecordMs.load(); }
+	float GetCPUSubmit() const { return cpuSubmitMs.load(); }
+	float GetCPUPresent() const { return cpuPresentMs.load(); }
+
+	float GetGameThread() const { return gameThreadMs.load(); }
+	float GetRenderThread() const { return renderThreadMs.load(); }
+
+	uint64_t GetGPUMemoryUsed() const { return gpuMemoryUsed.load(); }
+	uint64_t GetGPUMemoryBudget() const { return gpuMemoryBudget.load(); }
+	uint64_t GetSystemMemoryUsed() const { return systemMemoryUsed.load(); }
+
+	void SetGameThreadTime(float ms) { gameThreadMs.store(ms); }
+	void SetRenderThreadTime(float ms) { renderThreadMs.store(ms); }
+};
 
 class Renderer
 {
@@ -75,6 +120,10 @@ public:
 
 	vk::raii::ImageView& GetRenderTargetImageView() { return renderTargetImageView; }
 	vk::raii::Sampler& GetRenderTargetSampler() { return renderTargetSampler; }
+	FrameStats& GetFrameStats() { return frameStats; }
+	
+	void SetGameThreadTime(float ms) { frameStats.gameThreadMs.store(ms); }
+
 protected:
 	void CreateDepthResources();
 	void CreateImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling,
@@ -139,6 +188,16 @@ protected:
 	vk::raii::DeviceMemory renderTargetImageMemory = nullptr;
 	vk::raii::ImageView renderTargetImageView = nullptr;
 	vk::raii::Sampler renderTargetSampler = nullptr;
+
+	FrameStats frameStats;
+
+	vk::raii::QueryPool renderTimestampQueryPool = nullptr;
+	std::array<uint64_t, 2> timestampResults = {};
+
+	void CreateTimestampQueryPool();
+	void CalculateFrameStats();
+	void UpdateMemoryStats();
+
 private:
 
 	Window* RendererWindow = nullptr;

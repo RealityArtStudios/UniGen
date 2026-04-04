@@ -14,6 +14,7 @@ class Window;
 
 class ContentBrowserPanel;
 class SceneHierarchyPanel;
+class PerformancePanel;
 
 class ImGuiSystem
 {
@@ -38,6 +39,7 @@ public:
 	SceneHierarchyPanel* GetSceneHierarchy() const { return sceneHierarchyPanel.get(); }
 	void RefreshContentBrowserIcons();
 	void SetCurrentSceneName(const std::string& name) { currentSceneName = name; }
+	void SetPerformancePanel(std::unique_ptr<PerformancePanel> panel);
 
 private:
 	ImGuiContext* context = nullptr;
@@ -50,6 +52,7 @@ private:
 
 	std::unique_ptr<ContentBrowserPanel> contentBrowser;
 	std::unique_ptr<SceneHierarchyPanel> sceneHierarchyPanel;
+	std::unique_ptr<PerformancePanel> performancePanel;
 	std::string currentSceneName = "Untitled";
 	std::string lastSaveMessage;
 	float lastSaveTime = 0.0f;

@@ -14,6 +14,7 @@
 #include "../../Engine/Source/Runtime/Project/Project.h"
 #include "Panels/ContentBrowserPanel.h"
 #include "Panels/SceneHierarchyPanel.h"
+#include "Panels/PerformancePanel.h"
 
 #include <iostream>
 
@@ -73,6 +74,9 @@ void EditorLayer::OnAttach()
 		std::cout << "[EditorLayer] Entity selected: " << entity << std::endl;
 	};
 	m_Engine->GetRenderer()->GetImGuiSystem()->SetSceneHierarchy(std::move(sceneHierarchy));
+	
+	auto performancePanel = std::make_unique<PerformancePanel>(m_Engine->GetRenderer());
+	m_Engine->GetRenderer()->GetImGuiSystem()->SetPerformancePanel(std::move(performancePanel));
 	
 	m_Engine->GetRenderer()->ReloadSceneData();
 }

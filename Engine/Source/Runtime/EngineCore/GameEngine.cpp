@@ -4,6 +4,10 @@
 
 #include <iostream>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 GameEngine::GameEngine(int width, int height, int argc, char** argv)
     : m_WindowWidth(width)
     , m_WindowHeight(height)
@@ -11,6 +15,30 @@ GameEngine::GameEngine(int width, int height, int argc, char** argv)
     m_CommandLineArgs.Count = argc;
     m_CommandLineArgs.Args = argv;
     Initialize();
+}
+
+void GameEngine::MainLoop()
+{
+    while (bIsRunning && !m_Window->closed()) {
+        m_Window->Update();
+        
+        float deltaTime = m_Window->deltaTime;
+        
+        auto gameStart = GetTickCount64();
+        UpdateLayers(deltaTime);
+        OnUpdate(deltaTime);
+        auto gameEnd = GetTickCount64();
+        m_Renderer->GetFrameStats().SetGameThreadTime(static_cast<float>(gameEnd - gameStart));
+        
+        m_Renderer->Render();
+        
+        auto renderEnd = GetTickCount64();
+        m_Renderer->GetFrameStats().SetRenderThreadTime(static_cast<float>(renderEnd - gameEnd));
+        
+        RenderLayers();
+        OnRender(deltaTime);
+    }
+    m_Renderer->GetVulkanInstance()->GetLogicalDevice().waitIdle();
 }
 
 GameEngine::~GameEngine()
@@ -33,24 +61,6 @@ void GameEngine::Initialize()
 
     std::cout << "Initializing GameEngine..." << std::endl;
     m_Renderer->Initialize();
-}
-
-void GameEngine::MainLoop()
-{
-    while (bIsRunning && !m_Window->closed()) {
-        m_Window->Update();
-        
-        float deltaTime = m_Window->deltaTime;
-        
-        UpdateLayers(deltaTime);
-        OnUpdate(deltaTime);
-        
-        m_Renderer->Render();
-        
-        RenderLayers();
-        OnRender(deltaTime);
-    }
-    m_Renderer->GetVulkanInstance()->GetLogicalDevice().waitIdle();
 }
 
 void GameEngine::Shutdown()
