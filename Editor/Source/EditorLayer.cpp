@@ -12,6 +12,7 @@
 
 #include "../../Engine/Source/Runtime/EngineCore/Application.h"
 #include "../../Engine/Source/Runtime/Project/Project.h"
+#include "Panels/ContentBrowserPanel.h"
 
 #include <iostream>
 
@@ -41,6 +42,10 @@ void EditorLayer::OnAttach()
 			m_Engine->Stop();
 		}
 	}
+
+	auto contentBrowser = std::make_unique<ContentBrowserPanel>(m_Engine->GetRenderer());
+	contentBrowser->SetBaseDirectory(Project::GetActive()->GetAssetDirectory());
+	m_Engine->GetRenderer()->GetImGuiSystem()->SetContentBrowser(std::move(contentBrowser));
 }
 
 void EditorLayer::OnDetach()

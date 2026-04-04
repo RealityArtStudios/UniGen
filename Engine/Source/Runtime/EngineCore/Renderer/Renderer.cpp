@@ -96,6 +96,7 @@ void Renderer::Render()
         SwapChainWrapper->Recreate();
         CreateDepthResources();
         CreateRenderTarget();
+        DescriptorManagerWrapper->CreateDescriptorSets(PipelineManagerWrapper.get(), TextureManagerWrapper.get(), MeshData.get());
         if (ImGuiSystemWrapper) {
             ImGuiSystemWrapper->CleanupViewport();
             VkDescriptorSet renderTargetDescriptor = ImGui_ImplVulkan_AddTexture(
@@ -150,6 +151,7 @@ void Renderer::Render()
         SwapChainWrapper->Recreate();
         CreateDepthResources();
         CreateRenderTarget();
+        DescriptorManagerWrapper->CreateDescriptorSets(PipelineManagerWrapper.get(), TextureManagerWrapper.get(), MeshData.get());
         
         // Recreate the descriptor for ImGui viewport
         if (ImGuiSystemWrapper) {

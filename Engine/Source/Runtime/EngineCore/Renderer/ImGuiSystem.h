@@ -12,6 +12,8 @@
 class Renderer;
 class Window;
 
+class ContentBrowserPanel;
+
 class ImGuiSystem
 {
 public:
@@ -30,6 +32,8 @@ public:
 
 	void SetupViewportDescriptor(VkDescriptorSet descriptor);
 	void CleanupViewport();
+	void SetContentBrowser(std::unique_ptr<ContentBrowserPanel> panel);
+	void RefreshContentBrowserIcons();
 
 private:
 	ImGuiContext* context = nullptr;
@@ -39,4 +43,6 @@ private:
 
 	std::vector<VkDescriptorSet> viewportDescriptors;
 	vk::raii::Sampler viewportSampler = nullptr;
+
+	std::unique_ptr<ContentBrowserPanel> contentBrowser;
 };

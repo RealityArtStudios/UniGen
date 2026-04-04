@@ -38,6 +38,14 @@ import vulkan_hpp;
 #include "DescriptorManager.h"
 #include "ImGuiSystem.h"
 
+#ifndef STB_IMAGE_STATIC
+#define STB_IMAGE_STATIC
+#endif
+#ifndef STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#endif
+#include <stb_image.h>
+
 
 class Window;
 
