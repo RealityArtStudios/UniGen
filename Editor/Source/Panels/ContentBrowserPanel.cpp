@@ -640,6 +640,19 @@ void ContentBrowserPanel::OnRender()
                     if (ImGui::MenuItem("Load Scene"))
                     {
                         std::cout << "[ContentBrowser] Load scene: " << entryPath << std::endl;
+                        if (OnLoadScene)
+                        {
+                            OnLoadScene(entryPath);
+                        }
+                    }
+
+                    if (ImGui::MenuItem("Save Scene"))
+                    {
+                        std::cout << "[ContentBrowser] Save scene: " << entryPath << std::endl;
+                        if (OnSaveScene)
+                        {
+                            OnSaveScene(entryPath);
+                        }
                     }
                 }
 
@@ -698,6 +711,10 @@ void ContentBrowserPanel::OnRender()
                 if (ext == ".ungscene")
                 {
                     std::cout << "[ContentBrowser] Load scene (double-click): " << entryPath << std::endl;
+                    if (OnLoadScene)
+                    {
+                        OnLoadScene(entryPath);
+                    }
                 }
             }
         }

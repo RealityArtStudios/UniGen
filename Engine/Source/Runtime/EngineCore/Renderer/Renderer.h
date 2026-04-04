@@ -46,6 +46,9 @@ import vulkan_hpp;
 #endif
 #include <stb_image.h>
 
+#include "Runtime/EngineCore/ECS/ECS.h"
+#include "Runtime/EngineCore/ECS/Components.h"
+#include "Runtime/EngineCore/ECS/Scene.h"
 
 class Window;
 
@@ -63,11 +66,12 @@ public:
 	uint32_t GetCurrentFrameIndex() const { return frameIndex; }
 	ImGuiSystem* GetImGuiSystem() const { return ImGuiSystemWrapper.get(); }
 
-	// Mesh data access
-	const Mesh& GetMesh() const { return *MeshData; }
+	EngineScene& GetScene() { return SceneWrapper; }
 	Mesh& GetMesh() { return *MeshData; }
 	vk::raii::Buffer& GetVertexBuffer() { return VulkanVertexBuffer; }
 	vk::raii::Buffer& GetIndexBuffer() { return VulkanIndexBuffer; }
+
+	void ReloadSceneData();
 
 	vk::raii::ImageView& GetRenderTargetImageView() { return renderTargetImageView; }
 	vk::raii::Sampler& GetRenderTargetSampler() { return renderTargetSampler; }
@@ -112,6 +116,7 @@ protected:
 	std::unique_ptr<PipelineManager> PipelineManagerWrapper;
 	std::unique_ptr<ImGuiSystem> ImGuiSystemWrapper;
 	std::unique_ptr<Mesh> MeshData;
+	EngineScene SceneWrapper;
 	std::vector < vk::raii::Semaphore> VulkanPresentCompleteSemaphores;
 	std::vector < vk::raii::Semaphore> VulkanRenderFinishedSemaphores;
 	vk::raii::Fence     VulkanDrawFence = nullptr;

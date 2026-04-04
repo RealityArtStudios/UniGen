@@ -13,6 +13,7 @@
 #include "../../Engine/Source/Runtime/EngineCore/Application.h"
 #include "../../Engine/Source/Runtime/Project/Project.h"
 #include "Panels/ContentBrowserPanel.h"
+#include "Panels/SceneHierarchyPanel.h"
 
 #include <iostream>
 
@@ -45,7 +46,35 @@ void EditorLayer::OnAttach()
 
 	auto contentBrowser = std::make_unique<ContentBrowserPanel>(m_Engine->GetRenderer());
 	contentBrowser->SetBaseDirectory(Project::GetActive()->GetAssetDirectory());
+	contentBrowser->OnLoadScene = [this](std::filesystem::path path) {
+		auto sceneHierarchy = m_Engine->GetRenderer()->GetImGuiSystem()->GetSceneHierarchy();
+		if (sceneHierarchy)
+		{
+			sceneHierarchy->LoadScene(path);
+			m_Engine->GetRenderer()->ReloadSceneData();
+			m_Engine->GetRenderer()->GetImGuiSystem()->SetCurrentSceneName(sceneHierarchy->GetSceneName());
+		}
+	};
+	contentBrowser->OnSaveScene = [this](std::filesystem::path path) {
+		auto sceneHierarchy = m_Engine->GetRenderer()->GetImGuiSystem()->GetSceneHierarchy();
+		if (sceneHierarchy)
+		{
+			sceneHierarchy->SaveScene(path);
+		}
+	};
 	m_Engine->GetRenderer()->GetImGuiSystem()->SetContentBrowser(std::move(contentBrowser));
+
+	auto sceneHierarchy = std::make_unique<SceneHierarchyPanel>();
+	sceneHierarchy->SetScene(&m_Engine->GetRenderer()->GetScene());
+	sceneHierarchy->OnReloadScene = [this]() {
+		m_Engine->GetRenderer()->ReloadSceneData();
+	};
+	sceneHierarchy->OnEntitySelected = [this](EntityID entity) {
+		std::cout << "[EditorLayer] Entity selected: " << entity << std::endl;
+	};
+	m_Engine->GetRenderer()->GetImGuiSystem()->SetSceneHierarchy(std::move(sceneHierarchy));
+	
+	m_Engine->GetRenderer()->ReloadSceneData();
 }
 
 void EditorLayer::OnDetach()

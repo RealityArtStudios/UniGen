@@ -1,0 +1,6 @@
+Scene:
+  Name: Megaton
+  Entities:
+    - EntityID: 0
+      ModelPath: ..\Engine\Content\Models\viking_room.glb
+      TexturePath: ..\Engine\Content\Textures\viking_room.png

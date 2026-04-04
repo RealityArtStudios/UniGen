@@ -1,12 +1,13 @@
 // Copyright (c) CreationArtStudios
 
 #include "ImGuiSystem.h"
-#include "Renderer.h"
+
 #include "../Window.h"
-#include "SwapChain.h"
-#ifdef _WIN32
+#include "Renderer.h"
+
 #include "../../../../Editor/Source/Panels/ContentBrowserPanel.h"
-#endif
+#include "../../../../Editor/Source/Panels/SceneHierarchyPanel.h"
+
 #include <iostream>
 
 ImGuiSystem::ImGuiSystem()
@@ -135,6 +136,11 @@ void ImGuiSystem::RefreshContentBrowserIcons()
 	}
 }
 
+void ImGuiSystem::SetSceneHierarchy(std::unique_ptr<SceneHierarchyPanel> panel)
+{
+	sceneHierarchyPanel = std::move(panel);
+}
+
 void ImGuiSystem::NewFrame()
 {
 	if (!initialized) {
@@ -164,6 +170,94 @@ void ImGuiSystem::NewFrame()
 	// Create Viewport window
 	ImGui::SetNextWindowDockID(dockId, ImGuiCond_FirstUseEver);
 	if (ImGui::Begin("Viewport")) {
+		// Level info bar
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+		ImGui::Text("Level: ");
+		ImGui::SameLine();
+		ImGui::PopStyleColor();
+		
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.9f, 1.0f));
+		
+		static char levelNameBuffer[128] = "Untitled";
+		if (sceneHierarchyPanel)
+		{
+			std::string sceneName = sceneHierarchyPanel->GetSceneName();
+			if (!sceneName.empty())
+			{
+				strncpy_s(levelNameBuffer, sceneName.c_str(), sizeof(levelNameBuffer) - 1);
+			}
+		}
+		else if (!currentSceneName.empty())
+		{
+			strncpy_s(levelNameBuffer, currentSceneName.c_str(), sizeof(levelNameBuffer) - 1);
+		}
+		
+		ImGui::PushItemWidth(200);
+		if (ImGui::InputText("##LevelName", levelNameBuffer, sizeof(levelNameBuffer)))
+		{
+			if (sceneHierarchyPanel)
+			{
+				sceneHierarchyPanel->SetSceneName(levelNameBuffer);
+			}
+		}
+		ImGui::PopItemWidth();
+		ImGui::SameLine();
+		
+		if (ImGui::Button("Save"))
+		{
+			if (sceneHierarchyPanel)
+			{
+				sceneHierarchyPanel->SetSceneName(levelNameBuffer);
+				std::filesystem::path savePath = sceneHierarchyPanel->GetCurrentScenePath();
+				if (savePath.empty())
+				{
+					savePath = "Game/Content/Scenes/";
+					std::filesystem::create_directories(savePath);
+					savePath /= std::string(levelNameBuffer) + ".ungscene";
+				}
+				sceneHierarchyPanel->SaveScene(savePath);
+				currentSceneName = levelNameBuffer;
+				lastSaveMessage = "Saved: " + std::string(levelNameBuffer);
+				lastSaveTime = ImGui::GetTime();
+				std::cout << "[ImGuiSystem] Saved scene to: " << savePath << std::endl;
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Save All"))
+		{
+			if (sceneHierarchyPanel)
+			{
+				std::filesystem::path savePath = sceneHierarchyPanel->GetCurrentScenePath();
+				if (!savePath.empty())
+				{
+					sceneHierarchyPanel->SaveCurrentScene();
+					lastSaveMessage = "Saved: " + sceneHierarchyPanel->GetSceneName();
+					lastSaveTime = ImGui::GetTime();
+					std::cout << "[ImGuiSystem] Saved all to: " << savePath << std::endl;
+				}
+			}
+		}
+		ImGui::PopStyleColor();
+		
+		// Show save notification
+		if (!lastSaveMessage.empty())
+		{
+			float elapsed = ImGui::GetTime() - lastSaveTime;
+			if (elapsed < 3.0f)
+			{
+				ImGui::SameLine();
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+				ImGui::Text("%s", lastSaveMessage.c_str());
+				ImGui::PopStyleColor();
+			}
+			else
+			{
+				lastSaveMessage.clear();
+			}
+		}
+		
+		ImGui::Separator();
+		
 		ImVec2 avail = ImGui::GetContentRegionAvail();
 		ImTextureID texId = reinterpret_cast<ImTextureID>(viewportDescriptors.empty() ? VK_NULL_HANDLE : viewportDescriptors[0]);
 		ImGui::Image(texId, avail);
@@ -173,6 +267,11 @@ void ImGuiSystem::NewFrame()
 	// Content Browser panel
 	if (contentBrowser) {
 		contentBrowser->OnRender();
+	}
+
+	// Scene Hierarchy panel
+	if (sceneHierarchyPanel) {
+		sceneHierarchyPanel->OnImGuiRender();
 	}
 }
 

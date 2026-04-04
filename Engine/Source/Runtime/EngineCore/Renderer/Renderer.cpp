@@ -9,10 +9,6 @@
 #include "TextureManager.h"
 
 
-//TODO: File system and ecs load objedct and set the filepath
-const std::string MODEL_PATH = /*"../Engine/Content/Models/viking_room.obj"*/ "../Engine/Content/Models/viking_room.glb";
-const std::string TEXTURE_PATH = "../Engine/Content/Textures/viking_room.png";
-
 //TODO: Will move to vulkan specific RHI types
 const std::vector<char const*> validationLayers = {
 	"VK_LAYER_KHRONOS_validation"
@@ -47,13 +43,11 @@ void Renderer::Initialize()
     CommandPoolWrapper = std::make_unique<CommandPool>(VulkanInstanceWrapper.get());
     CreateDepthResources();
     CreateRenderTarget();
+    
     TextureManagerWrapper = std::make_unique<TextureManager>(VulkanInstanceWrapper.get(), SwapChainWrapper.get(), BufferManagerWrapper.get(), CommandPoolWrapper->GetCommandPool());
-    TextureManagerWrapper->Initialize(TEXTURE_PATH);
     
-    MeshData = std::make_unique<Mesh>(MODEL_PATH);
+    MeshData = std::make_unique<Mesh>();
     
-    BufferManagerWrapper->CreateVertexBuffer(MeshData->GetVertices(), VulkanVertexBuffer, VulkanVertexBufferMemory, CommandPoolWrapper->GetCommandPool(), VulkanInstanceWrapper->GetGraphicsQueue());
-    BufferManagerWrapper->CreateIndexBuffer(MeshData->GetIndices(), VulkanIndexBuffer, VulkanIndexBufferMemory, CommandPoolWrapper->GetCommandPool(), VulkanInstanceWrapper->GetGraphicsQueue());
     DescriptorManagerWrapper = std::make_unique<DescriptorManager>(VulkanInstanceWrapper.get(), MAX_FRAMES_IN_FLIGHT);
     std::vector<vk::raii::Buffer> uniformBuffers;
     std::vector<vk::raii::DeviceMemory> uniformBuffersMemory;
@@ -61,20 +55,57 @@ void Renderer::Initialize()
     BufferManagerWrapper->CreateUniformBuffers(MAX_FRAMES_IN_FLIGHT, uniformBuffers, uniformBuffersMemory, uniformBuffersMapped);
     DescriptorManagerWrapper->SetUniformBuffers(uniformBuffers, uniformBuffersMemory, uniformBuffersMapped);
     DescriptorManagerWrapper->CreateDescriptorPool();
-    DescriptorManagerWrapper->CreateDescriptorSets(PipelineManagerWrapper.get(), TextureManagerWrapper.get(), MeshData.get());
     CommandBufferManagerWrapper = std::make_unique<CommandBufferManager>(VulkanInstanceWrapper.get(), CommandPoolWrapper.get(), MAX_FRAMES_IN_FLIGHT);
     CreateSyncObjects();
     
     ImGuiSystemWrapper = std::make_unique<ImGuiSystem>();
     ImGuiSystemWrapper->Initialize(this, RendererWindow);
     
-    // Create render target descriptor for ImGui viewport
     VkDescriptorSet renderTargetDescriptor = ImGui_ImplVulkan_AddTexture(
         static_cast<VkSampler>(*renderTargetSampler),
         static_cast<VkImageView>(*renderTargetImageView),
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     );
     ImGuiSystemWrapper->SetupViewportDescriptor(renderTargetDescriptor);
+}
+
+void Renderer::ReloadSceneData()
+{
+    VulkanInstanceWrapper->GetLogicalDevice().waitIdle();
+    
+    Scene& scene = SceneWrapper.GetInternalScene();
+    auto view = scene.CreateView<MeshComponent, MaterialComponent>();
+    
+    int loadedCount = 0;
+    for (EntityID entity : view)
+    {
+        MeshComponent* meshComp = scene.GetComponent<MeshComponent>(entity);
+        MaterialComponent* materialComp = scene.GetComponent<MaterialComponent>(entity);
+        
+        if (!meshComp || meshComp->ModelPath.empty())
+            continue;
+        
+        std::cout << "[Renderer] Loading model: " << meshComp->ModelPath << std::endl;
+        
+        TextureManagerWrapper->Initialize(materialComp ? materialComp->TexturePath : "");
+        
+        MeshData = std::make_unique<Mesh>(meshComp->ModelPath);
+        
+        BufferManagerWrapper->CreateVertexBuffer(MeshData->GetVertices(), VulkanVertexBuffer, VulkanVertexBufferMemory, CommandPoolWrapper->GetCommandPool(), VulkanInstanceWrapper->GetGraphicsQueue());
+        BufferManagerWrapper->CreateIndexBuffer(MeshData->GetIndices(), VulkanIndexBuffer, VulkanIndexBufferMemory, CommandPoolWrapper->GetCommandPool(), VulkanInstanceWrapper->GetGraphicsQueue());
+        
+        DescriptorManagerWrapper->CreateDescriptorSets(PipelineManagerWrapper.get(), TextureManagerWrapper.get(), MeshData.get());
+        
+        loadedCount++;
+        std::cout << "[Renderer] Successfully loaded model for entity: " << entity << std::endl;
+        break;
+    }
+    
+    if (loadedCount == 0)
+    {
+        std::cout << "[Renderer] No entities with mesh components found" << std::endl;
+        MeshData.reset();
+    }
 }
 
 void Renderer::Render()
@@ -151,7 +182,10 @@ void Renderer::Render()
         SwapChainWrapper->Recreate();
         CreateDepthResources();
         CreateRenderTarget();
-        DescriptorManagerWrapper->CreateDescriptorSets(PipelineManagerWrapper.get(), TextureManagerWrapper.get(), MeshData.get());
+    if (MeshData && MeshData->GetIndexCount() > 0)
+        {
+            DescriptorManagerWrapper->CreateDescriptorSets(PipelineManagerWrapper.get(), TextureManagerWrapper.get(), MeshData.get());
+        }
         
         // Recreate the descriptor for ImGui viewport
         if (ImGuiSystemWrapper) {
@@ -362,10 +396,14 @@ void Renderer::recordCommandBuffer(uint32_t imageIndex)
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *PipelineManagerWrapper->GetGraphicsPipeline());
     commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(SwapChainWrapper->GetExtent().width), static_cast<float>(SwapChainWrapper->GetExtent().height), 0.0f, 1.0f));
     commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), SwapChainWrapper->GetExtent()));
-    commandBuffer.bindVertexBuffers(0, *VulkanVertexBuffer, { 0 });
-    commandBuffer.bindIndexBuffer(*VulkanIndexBuffer, 0, vk::IndexType::eUint32);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *PipelineManagerWrapper->GetPipelineLayout(), 0, *DescriptorManagerWrapper->GetCurrentDescriptorSet(frameIndex), nullptr);
-    commandBuffer.drawIndexed(MeshData->GetIndexCount(), 1, 0, 0, 0);
+    
+    if (MeshData && MeshData->GetIndexCount() > 0)
+    {
+        commandBuffer.bindVertexBuffers(0, *VulkanVertexBuffer, { 0 });
+        commandBuffer.bindIndexBuffer(*VulkanIndexBuffer, 0, vk::IndexType::eUint32);
+        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *PipelineManagerWrapper->GetPipelineLayout(), 0, *DescriptorManagerWrapper->GetCurrentDescriptorSet(frameIndex), nullptr);
+        commandBuffer.drawIndexed(MeshData->GetIndexCount(), 1, 0, 0, 0);
+    }
     
     commandBuffer.endRendering();
     

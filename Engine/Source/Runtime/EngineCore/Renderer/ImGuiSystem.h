@@ -13,6 +13,7 @@ class Renderer;
 class Window;
 
 class ContentBrowserPanel;
+class SceneHierarchyPanel;
 
 class ImGuiSystem
 {
@@ -33,7 +34,10 @@ public:
 	void SetupViewportDescriptor(VkDescriptorSet descriptor);
 	void CleanupViewport();
 	void SetContentBrowser(std::unique_ptr<ContentBrowserPanel> panel);
+	void SetSceneHierarchy(std::unique_ptr<SceneHierarchyPanel> panel);
+	SceneHierarchyPanel* GetSceneHierarchy() const { return sceneHierarchyPanel.get(); }
 	void RefreshContentBrowserIcons();
+	void SetCurrentSceneName(const std::string& name) { currentSceneName = name; }
 
 private:
 	ImGuiContext* context = nullptr;
@@ -45,4 +49,8 @@ private:
 	vk::raii::Sampler viewportSampler = nullptr;
 
 	std::unique_ptr<ContentBrowserPanel> contentBrowser;
+	std::unique_ptr<SceneHierarchyPanel> sceneHierarchyPanel;
+	std::string currentSceneName = "Untitled";
+	std::string lastSaveMessage;
+	float lastSaveTime = 0.0f;
 };

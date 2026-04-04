@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <functional>
 
 #if defined(__INTELLISENSE__) || !defined(USE_CPP20_MODULES)
 #   include <vulkan/vulkan_raii.hpp>
@@ -43,6 +44,9 @@ public:
 
     void OpenAddDialog();
     void OpenImportDialog();
+
+    std::function<void(std::filesystem::path)> OnLoadScene;
+    std::function<void(std::filesystem::path)> OnSaveScene;
 
     // ─────────────────────────────────────────────────────────────────────────────
     //  Advanced Search System

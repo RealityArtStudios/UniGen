@@ -1,2 +1,4 @@
 Scene:
   Name: Default
+  Entities:
+    - ../Engine/Content/Models/viking_room.glb
