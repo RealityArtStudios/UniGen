@@ -9,6 +9,7 @@
 #include "../../../../Editor/Source/Panels/SceneHierarchyPanel.h"
 #include "../../../../Editor/Source/Panels/PerformancePanel.h"
 #include "../../../../Editor/Source/Panels/ProjectLauncherPanel.h"
+#include "../../../../Editor/Source/Panels/MaterialsPanel.h"
 
 #include <iostream>
 
@@ -123,6 +124,11 @@ void ImGuiSystem::SetSceneHierarchy(std::unique_ptr<SceneHierarchyPanel> panel)
 void ImGuiSystem::SetPerformancePanel(std::unique_ptr<PerformancePanel> panel)
 {
     performancePanel = std::move(panel);
+}
+
+void ImGuiSystem::SetMaterialsPanel(std::unique_ptr<MaterialsPanel> panel)
+{
+    materialsPanel = std::move(panel);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -295,6 +301,7 @@ void ImGuiSystem::NewFrame()
     if (contentBrowser)     contentBrowser->OnRender();
     if (sceneHierarchyPanel) sceneHierarchyPanel->OnImGuiRender();
     if (performancePanel)   performancePanel->OnImGuiRender();
+    if (materialsPanel) materialsPanel->OnImGuiRender();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

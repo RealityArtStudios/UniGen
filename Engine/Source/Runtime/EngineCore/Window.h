@@ -34,13 +34,15 @@ public:
     /// Indicates the current state of the Window.
     bool closed() const;
     void Update() const;
-
+    double GetScrollDelta() const { return m_ScrollDelta; }
+    void   ConsumeScroll() { m_ScrollDelta = 0.0; }
     /// Gets the current width of the window.
     inline int getWidth() const { return m_Width; }
     /// Gets the current height of the window.
     inline int getHeight() const { return m_Height; }
     /// Gets the current window's pointer to it's native object.
     inline GLFWwindow* getGLFWwindow() const { return m_Window; }
+    static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
      bool IsResized() {return m_IsResized; }
      void SetResizedFalse() { m_IsResized = false; }
@@ -70,6 +72,7 @@ private:
     GLFWwindow*		m_Window;
     bool			m_Closed;
     bool            m_IsResized;
+    double m_ScrollDelta = 0.0;
 
     bool            m_HeldKeys[MAX_KEYS];
     bool            m_PressedKeys[MAX_KEYS];
@@ -88,4 +91,6 @@ private :
     friend void window_resize_callback(GLFWwindow* window, int width, int height);
     friend void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
     friend void mouse_position_callback(GLFWwindow* window, double xpos, double ypos);
+    friend void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+
 };

@@ -1,0 +1,6 @@
+Scene:
+  Name: Sponza
+  Entities:
+    - EntityID: 0
+      ModelPath: ..\Engine\Content\Models\Sponza\Sponza.gltf
+      TexturePath:

@@ -22,10 +22,12 @@ import vulkan_hpp;
 #endif
 
 #include <tiny_gltf.h>
+#include "Material.h"
 
 class Mesh
 {
 public:
+	// ── Vertex layout ─────────────────────────────────────────────────────────
 	struct Vertex
 	{
 		glm::vec3 pos;
@@ -42,7 +44,7 @@ public:
 			return {
 				vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos)),
 				vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color)),
-				vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, texCoord))
+				vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32Sfloat,    offsetof(Vertex, texCoord))
 			};
 		}
 
@@ -52,6 +54,7 @@ public:
 		}
 	};
 
+	// ── Uniform buffer ────────────────────────────────────────────────────────
 	struct UniformBufferObject
 	{
 		alignas(16) glm::mat4 model;
@@ -59,22 +62,39 @@ public:
 		alignas(16) glm::mat4 proj;
 	};
 
+	// ── Sub-mesh: a slice of the merged index buffer with a material index ────
+	struct SubMesh
+	{
+		uint32_t FirstIndex    = 0;   // byte offset into the merged index buffer
+		uint32_t IndexCount    = 0;   // number of indices for this draw call
+		int      MaterialIndex = -1;  // index into Materials[]; -1 = use fallback
+	};
+
+	// ── Construction ──────────────────────────────────────────────────────────
 	Mesh() = default;
 	explicit Mesh(const std::string& modelPath);
 
 	void LoadFromGLTF(const std::string& filepath);
 
-	const std::vector<Vertex>& GetVertices() const { return Vertices; }
-	const std::vector<uint32_t>& GetIndices() const { return Indices; }
-	uint32_t GetVertexCount() const { return static_cast<uint32_t>(Vertices.size()); }
-	uint32_t GetIndexCount() const { return static_cast<uint32_t>(Indices.size()); }
+	// ── Geometry accessors ────────────────────────────────────────────────────
+	const std::vector<Vertex>&   GetVertices()   const { return Vertices; }
+	const std::vector<uint32_t>& GetIndices()    const { return Indices; }
+	uint32_t                     GetVertexCount() const { return static_cast<uint32_t>(Vertices.size()); }
+	uint32_t                     GetIndexCount()  const { return static_cast<uint32_t>(Indices.size()); }
 
-	vk::VertexInputBindingDescription GetBindingDescription() const { return Vertex::GetBindingDescription(); }
+	// ── Sub-mesh / material accessors ─────────────────────────────────────────
+	const std::vector<SubMesh>&      GetSubMeshes() const { return SubMeshes; }
+	const std::vector<GltfMaterial>& GetMaterials() const { return Materials; }
+
+	// ── Vulkan input descriptions ─────────────────────────────────────────────
+	vk::VertexInputBindingDescription                  GetBindingDescription()    const { return Vertex::GetBindingDescription(); }
 	std::array<vk::VertexInputAttributeDescription, 3> GetAttributeDescriptions() const { return Vertex::GetAttributeDescriptions(); }
 
 private:
-	std::vector<Vertex> Vertices;
-	std::vector<uint32_t> Indices;
+	std::vector<Vertex>       Vertices;
+	std::vector<uint32_t>     Indices;
+	std::vector<SubMesh>      SubMeshes;
+	std::vector<GltfMaterial> Materials;
 };
 
 template <>
@@ -82,6 +102,7 @@ struct std::hash<Mesh::Vertex>
 {
 	size_t operator()(Mesh::Vertex const& vertex) const noexcept
 	{
-		return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+		return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1)
+		     ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
 	}
 };

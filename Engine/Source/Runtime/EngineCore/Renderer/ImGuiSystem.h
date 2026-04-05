@@ -16,6 +16,7 @@ class ContentBrowserPanel;
 class SceneHierarchyPanel;
 class PerformancePanel;
 class ProjectLauncherPanel;
+class MaterialsPanel;
 
 class ImGuiSystem
 {
@@ -43,6 +44,9 @@ public:
     void RefreshContentBrowserIcons();
     void SetCurrentSceneName(const std::string& name) { currentSceneName = name; }
     SceneHierarchyPanel* GetSceneHierarchy() const { return sceneHierarchyPanel.get(); }
+    void SetMaterialsPanel(std::unique_ptr<MaterialsPanel> panel);
+    MaterialsPanel* GetMaterialsPanel() const { return materialsPanel.get(); }
+
 
     // ── Project launcher ──────────────────────────────────────────────────────
     // Pass nullptr to dismiss the launcher and reveal the normal editor UI.
@@ -64,6 +68,7 @@ private:
     std::unique_ptr<SceneHierarchyPanel>  sceneHierarchyPanel;
     std::unique_ptr<PerformancePanel>     performancePanel;
     std::unique_ptr<ProjectLauncherPanel> projectLauncherPanel;
+    std::unique_ptr<MaterialsPanel> materialsPanel;
 
     // Set to true by SetProjectLauncher(nullptr) so that NewFrame() knows the
     // launcher was intentionally dismissed during its own OnRender() call.

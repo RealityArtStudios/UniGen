@@ -18,6 +18,7 @@
 #include "Panels/SceneHierarchyPanel.h"
 #include "Panels/PerformancePanel.h"
 #include "Panels/ProjectLauncherPanel.h"
+#include "Panels/MaterialsPanel.h"
 
 EditorLayer::EditorLayer()  = default;
 EditorLayer::~EditorLayer() = default;
@@ -133,6 +134,9 @@ void EditorLayer::InitializeEditorPanels()
     m_Engine->GetRenderer()->GetImGuiSystem()->SetPerformancePanel(std::move(performancePanel));
 
     m_Engine->GetRenderer()->ReloadSceneData();
+
+    auto matPanel = std::make_unique<MaterialsPanel>(m_Engine->GetRenderer());
+    m_Engine->GetRenderer()->GetImGuiSystem()->SetMaterialsPanel(std::move(matPanel));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

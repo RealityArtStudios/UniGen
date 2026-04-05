@@ -54,8 +54,15 @@ bool Window::init()
     glfwSetKeyCallback(m_Window, key_callback);
     glfwSetMouseButtonCallback(m_Window, mouse_button_callback);
     glfwSetCursorPosCallback(m_Window, mouse_position_callback);
+    glfwSetScrollCallback(m_Window, scroll_callback);
 
     return true;
+}
+
+void Window::scroll_callback(GLFWwindow* window, double /*xoffset*/, double yoffset)
+{
+    Window* wind = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    wind->m_ScrollDelta += yoffset;
 }
 
 bool Window::isKeyPressed(unsigned int keycode)
