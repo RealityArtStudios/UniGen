@@ -33,6 +33,7 @@ public:
 
     bool WantCaptureKeyboard() const;
     bool WantCaptureMouse()    const;
+    bool IsViewportHovered() const { return m_ViewportHovered; }
 
     void SetupViewportDescriptor(VkDescriptorSet descriptor);
     void CleanupViewport();
@@ -73,6 +74,7 @@ private:
     // Set to true by SetProjectLauncher(nullptr) so that NewFrame() knows the
     // launcher was intentionally dismissed during its own OnRender() call.
     bool m_LauncherShouldDismiss = false;
+    bool m_ViewportHovered = false;
 
     std::string currentSceneName = "Untitled";
     std::string lastSaveMessage;

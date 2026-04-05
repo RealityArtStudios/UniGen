@@ -382,9 +382,10 @@ void Renderer::Shutdown() {}
 void Renderer::UpdateUniformBuffer(uint32_t currentImage)
 {
     // ── Camera input (only when ImGui isn't consuming it) ────────────────────
-    const bool imguiWantsMouse = ImGuiSystemWrapper && ImGuiSystemWrapper->WantCaptureMouse();
+    const bool allowCameraInput = !ImGuiSystemWrapper
+        || ImGuiSystemWrapper->IsViewportHovered();
 
-    if (!imguiWantsMouse)
+    if (allowCameraInput)
     {
         // Scroll wheel → zoom
         double scroll = RendererWindow->GetScrollDelta();

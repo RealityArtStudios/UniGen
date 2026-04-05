@@ -215,6 +215,8 @@ void ImGuiSystem::NewFrame()
     ImGui::SetNextWindowDockID(dockId, ImGuiCond_FirstUseEver);
     if (ImGui::Begin("Viewport"))
     {
+        m_ViewportHovered = ImGui::IsWindowHovered();
+
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
         ImGui::Text("Level: ");
         ImGui::SameLine();
