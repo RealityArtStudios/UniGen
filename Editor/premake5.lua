@@ -51,7 +51,7 @@ project "Editor"
 
 	filter "system:windows"
 		systemversion "latest"
-		defines { "CAE_PLATFORM_WINDOWS" }
+		defines { "CAE_PLATFORM_WINDOWS", "CAE_EDITOR" }
 
 	filter "configurations:Debug"
 		defines { "CAE_DEBUG" }

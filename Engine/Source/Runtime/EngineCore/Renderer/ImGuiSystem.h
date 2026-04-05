@@ -12,11 +12,13 @@
 class Renderer;
 class Window;
 
+#ifdef CAE_EDITOR
 class ContentBrowserPanel;
 class SceneHierarchyPanel;
 class PerformancePanel;
 class ProjectLauncherPanel;
 class MaterialsPanel;
+#endif
 
 class ImGuiSystem
 {
@@ -34,11 +36,14 @@ public:
     bool WantCaptureKeyboard() const;
     bool WantCaptureMouse()    const;
     bool IsViewportHovered() const { return m_ViewportHovered; }
+    bool m_ViewportHovered = false;
 
     void SetupViewportDescriptor(VkDescriptorSet descriptor);
     void CleanupViewport();
 
     // ── Editor panels ─────────────────────────────────────────────────────────
+#ifdef CAE_EDITOR
+
     void SetContentBrowser(std::unique_ptr<ContentBrowserPanel> panel);
     void SetSceneHierarchy(std::unique_ptr<SceneHierarchyPanel> panel);
     void SetPerformancePanel(std::unique_ptr<PerformancePanel>  panel);
@@ -55,6 +60,7 @@ public:
     // deferred until after OnRender() fully returns (see NewFrame()).
     void SetProjectLauncher(std::unique_ptr<ProjectLauncherPanel> panel);
     ProjectLauncherPanel* GetProjectLauncher() const { return projectLauncherPanel.get(); }
+#endif
 
 private:
     ImGuiContext* context  = nullptr;
@@ -64,6 +70,7 @@ private:
 
     std::vector<VkDescriptorSet> viewportDescriptors;
     vk::raii::Sampler viewportSampler = nullptr;
+#ifdef CAE_EDITOR
 
     std::unique_ptr<ContentBrowserPanel>  contentBrowser;
     std::unique_ptr<SceneHierarchyPanel>  sceneHierarchyPanel;
@@ -74,9 +81,10 @@ private:
     // Set to true by SetProjectLauncher(nullptr) so that NewFrame() knows the
     // launcher was intentionally dismissed during its own OnRender() call.
     bool m_LauncherShouldDismiss = false;
-    bool m_ViewportHovered = false;
 
     std::string currentSceneName = "Untitled";
     std::string lastSaveMessage;
     float       lastSaveTime = 0.0f;
+#endif
+
 };

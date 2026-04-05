@@ -5,11 +5,13 @@
 #include "../Window.h"
 #include "Renderer.h"
 
+#ifdef CAE_EDITOR
 #include "../../../../Editor/Source/Panels/ContentBrowserPanel.h"
 #include "../../../../Editor/Source/Panels/SceneHierarchyPanel.h"
 #include "../../../../Editor/Source/Panels/PerformancePanel.h"
 #include "../../../../Editor/Source/Panels/ProjectLauncherPanel.h"
 #include "../../../../Editor/Source/Panels/MaterialsPanel.h"
+#endif
 
 #include <iostream>
 
@@ -108,6 +110,7 @@ void ImGuiSystem::SetupViewportDescriptor(VkDescriptorSet descriptor)
 
 void ImGuiSystem::CleanupViewport() { viewportDescriptors.clear(); }
 
+#ifdef CAE_EDITOR
 // ── Panel setters ─────────────────────────────────────────────────────────────
 void ImGuiSystem::SetContentBrowser(std::unique_ptr<ContentBrowserPanel> panel)
 {
@@ -146,6 +149,7 @@ void ImGuiSystem::SetProjectLauncher(std::unique_ptr<ProjectLauncherPanel> panel
     if (!projectLauncherPanel)
         m_LauncherShouldDismiss = true;
 }
+#endif // CAE_EDITOR
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  NewFrame
@@ -156,6 +160,8 @@ void ImGuiSystem::NewFrame()
 
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+#ifdef CAE_EDITOR
 
     // ── Project launcher ──────────────────────────────────────────────────────
     // When the launcher is active it takes over the entire frame.
@@ -190,6 +196,7 @@ void ImGuiSystem::NewFrame()
 
         return;
     }
+#endif
 
     // ── Normal editor UI ──────────────────────────────────────────────────────
 
@@ -216,6 +223,7 @@ void ImGuiSystem::NewFrame()
     if (ImGui::Begin("Viewport"))
     {
         m_ViewportHovered = ImGui::IsWindowHovered();
+#ifdef CAE_EDITOR
 
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
         ImGui::Text("Level: ");
@@ -292,6 +300,7 @@ void ImGuiSystem::NewFrame()
         }
 
         ImGui::Separator();
+#endif // CAE_EDITOR
 
         ImVec2    avail = ImGui::GetContentRegionAvail();
         ImTextureID texId = reinterpret_cast<ImTextureID>(
@@ -299,11 +308,14 @@ void ImGuiSystem::NewFrame()
         ImGui::Image(texId, avail);
     }
     ImGui::End();
+#ifdef CAE_EDITOR
 
     if (contentBrowser)     contentBrowser->OnRender();
     if (sceneHierarchyPanel) sceneHierarchyPanel->OnImGuiRender();
     if (performancePanel)   performancePanel->OnImGuiRender();
     if (materialsPanel) materialsPanel->OnImGuiRender();
+#endif
+
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
