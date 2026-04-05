@@ -8,6 +8,10 @@
 #include "Runtime/EngineCore/Shader/Shader.h"
 #include "TextureManager.h"
 
+// ADD THESE TWO DEFINES before any windows.h inclusion (pulled in transitively)
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+
 #ifdef _WIN32
 #include <windows.h>
 #include <psapi.h>
@@ -381,56 +385,98 @@ void Renderer::Shutdown() {}
 // ─────────────────────────────────────────────────────────────────────────────
 void Renderer::UpdateUniformBuffer(uint32_t currentImage)
 {
-    // ── Camera input (only when ImGui isn't consuming it) ────────────────────
-    const bool allowCameraInput = !ImGuiSystemWrapper
-        || ImGuiSystemWrapper->IsViewportHovered();
+    // Consume per-frame deltas immediately — prevents stale values causing
+    // camera drift on frames where the mouse hasn't moved.
+    const float dx = RendererWindow->deltaMouseX;
+    const float dy = RendererWindow->deltaMouseY;
+    RendererWindow->deltaMouseX = 0.0f;
+    RendererWindow->deltaMouseY = 0.0f;
 
-    if (allowCameraInput)
+    const bool viewportHovered = ImGuiSystemWrapper && ImGuiSystemWrapper->IsViewportHovered();
+    const bool allowInput = !ImGuiSystemWrapper || viewportHovered;
+    const bool rmb = RendererWindow->isMouseButtonHeld(GLFW_MOUSE_BUTTON_RIGHT);
+    const bool mmb = RendererWindow->isMouseButtonHeld(GLFW_MOUSE_BUTTON_MIDDLE);
+
+    if (allowInput)
     {
-        // Scroll wheel → zoom
+        // ── Recompute camera basis vectors ────────────────────────────────
+        const glm::vec3 worldUp = glm::vec3(0.0f, 0.0f, 1.0f);
+        float yr = glm::radians(m_CamYaw);
+        float pr = glm::radians(m_CamPitch);
+
+        // camOffset: unit vector pointing FROM target TO camera
+        glm::vec3 camOffset = glm::normalize(glm::vec3(
+            cos(pr) * sin(yr),
+            cos(pr) * cos(yr),
+            sin(pr)));
+
+        glm::vec3 viewDir = -camOffset;   // direction camera looks into scene
+        glm::vec3 right = glm::normalize(glm::cross(camOffset, worldUp));
+        glm::vec3 up = glm::cross(right, viewDir);
+
+        // ── Scroll wheel → dolly forward/back along view direction ────────
         double scroll = RendererWindow->GetScrollDelta();
         if (scroll != 0.0)
         {
-            m_CamDistance -= static_cast<float>(scroll) * 0.8f;
-            m_CamDistance = glm::clamp(m_CamDistance, 0.5f, 500.0f);
+            float speed = (m_CamDistance * 0.1f > 0.5f) ? m_CamDistance * 0.1f : 0.5f;
+            m_CamTarget += viewDir * static_cast<float>(scroll) * speed;
             RendererWindow->ConsumeScroll();
         }
 
-        // Right-mouse drag → orbit
-        if (RendererWindow->isMouseButtonHeld(GLFW_MOUSE_BUTTON_RIGHT))
+        // ── Right-mouse drag → look (rotate yaw / pitch) ─────────────────
+        if (rmb)
         {
-            m_CamYaw -= RendererWindow->deltaMouseX * 0.25f;
-            m_CamPitch += RendererWindow->deltaMouseY * 0.25f;
+            m_CamYaw -= dx * 0.25f;
+            m_CamPitch += dy * 0.25f;
             m_CamPitch = glm::clamp(m_CamPitch, -89.0f, 89.0f);
+
+            // Recompute basis after rotation so WASD uses updated axes
+            yr = glm::radians(m_CamYaw);
+            pr = glm::radians(m_CamPitch);
+            camOffset = glm::normalize(glm::vec3(
+                cos(pr) * sin(yr),
+                cos(pr) * cos(yr),
+                sin(pr)));
+            viewDir = -camOffset;
+            right = glm::normalize(glm::cross(camOffset, worldUp));
+            up = glm::cross(right, viewDir);
         }
 
-        // Middle-mouse drag → pan target
-        if (RendererWindow->isMouseButtonHeld(GLFW_MOUSE_BUTTON_MIDDLE))
+        // ── Middle-mouse drag → pan target ────────────────────────────────
+        if (mmb)
         {
-            // Build right / up vectors for current orientation
-            float yawRad = glm::radians(m_CamYaw);
-            float pitchRad = glm::radians(m_CamPitch);
-            glm::vec3 forward = glm::normalize(glm::vec3(
-                cos(pitchRad) * sin(yawRad),
-                cos(pitchRad) * cos(yawRad),
-                sin(pitchRad)));
-            glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0, 0, 1)));
-            glm::vec3 up = glm::cross(right, forward);
-
             float panSpeed = m_CamDistance * 0.001f;
-            m_CamTarget -= right * static_cast<float>(RendererWindow->deltaMouseX) * panSpeed;
-            m_CamTarget += up * static_cast<float>(RendererWindow->deltaMouseY) * panSpeed;
+            m_CamTarget -= right * dx * panSpeed;
+            m_CamTarget += up * dy * panSpeed;
+        }
+
+        // ── Right-mouse + WASD/QE → Unreal-style fly ─────────────────────
+        // Hold Shift to move 3× faster, same as Unreal.
+        if (rmb)
+        {
+            const bool shift = RendererWindow->isKeyHeld(GLFW_KEY_LEFT_SHIFT) ||
+                RendererWindow->isKeyHeld(GLFW_KEY_RIGHT_SHIFT);
+
+            float speed = glm::clamp(m_CamDistance * 0.02f, 0.05f, 100.0f);
+            if (shift) speed *= 3.0f;
+
+            if (RendererWindow->isKeyHeld(GLFW_KEY_W)) m_CamTarget += viewDir * speed;
+            if (RendererWindow->isKeyHeld(GLFW_KEY_S)) m_CamTarget -= viewDir * speed;
+            if (RendererWindow->isKeyHeld(GLFW_KEY_A)) m_CamTarget -= right * speed;
+            if (RendererWindow->isKeyHeld(GLFW_KEY_D)) m_CamTarget += right * speed;
+            if (RendererWindow->isKeyHeld(GLFW_KEY_E)) m_CamTarget += worldUp * speed;
+            if (RendererWindow->isKeyHeld(GLFW_KEY_Q)) m_CamTarget -= worldUp * speed;
         }
     }
 
-    // ── Build view matrix from spherical coordinates (Z-up) ─────────────────
-    float yawRad = glm::radians(m_CamYaw);
-    float pitchRad = glm::radians(m_CamPitch);
+    // ── Build view + projection matrices ─────────────────────────────────────
+    const float yr = glm::radians(m_CamYaw);
+    const float pr = glm::radians(m_CamPitch);
 
-    glm::vec3 camPos = m_CamTarget + glm::vec3(
-        m_CamDistance * cos(pitchRad) * sin(yawRad),
-        m_CamDistance * cos(pitchRad) * cos(yawRad),
-        m_CamDistance * sin(pitchRad));
+    const glm::vec3 camPos = m_CamTarget + glm::vec3(
+        m_CamDistance * cos(pr) * sin(yr),
+        m_CamDistance * cos(pr) * cos(yr),
+        m_CamDistance * sin(pr));
 
     Mesh::UniformBufferObject ubo{};
     ubo.model = glm::mat4(1.0f);
@@ -444,6 +490,7 @@ void Renderer::UpdateUniformBuffer(uint32_t currentImage)
 
     DescriptorManagerWrapper->UpdateUniformBuffer(currentImage, ubo);
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 void Renderer::recordCommandBuffer(uint32_t imageIndex)
 {

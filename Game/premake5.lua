@@ -48,6 +48,9 @@ project "Game"
 	filter "configurations:Release"
 		libdirs { "../Engine/ThirdParty/yaml-cpp/Binaries/Release/windows/x86_64/yaml-cpp" }
 
+		filter "configurations:Dist"
+    libdirs { "../Engine/ThirdParty/yaml-cpp/Binaries/Release/windows/x86_64/yaml-cpp" }
+
 	filter "system:windows"
 		systemversion "latest"
 		defines { "CAE_PLATFORM_WINDOWS" }

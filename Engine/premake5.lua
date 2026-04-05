@@ -56,6 +56,13 @@ includedirs
 			"ThirdParty/yaml-cpp/Binaries/Release/windows/x86_64/yaml-cpp",
 			"%{VulkanSDK.LibraryDir}"
 		}
+
+	filter "configurations:Dist"
+    libdirs 
+    {
+        "ThirdParty/yaml-cpp/Binaries/Release/windows/x86_64/yaml-cpp",
+        "%{VulkanSDK.LibraryDir}"
+    }
 	
 filter "system:windows"
 		systemversion "latest"
